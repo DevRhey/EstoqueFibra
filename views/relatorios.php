@@ -8,6 +8,8 @@ $estoqueSeguroLabels = [
     'roteador' => 'Roteadores',
     'onu' => 'ONU',
     'conector_fibra' => 'Conectores',
+    'conector_rj' => 'Conector RJ',
+    'esticador' => 'Esticador',
 ];
 
 usort($cardsTecnicos, static function (array $a, array $b): int {
@@ -174,11 +176,22 @@ foreach ($cardsTecnicos as $cardResumo) {
                         <?php endif; ?>
 
                         <h6 class="mb-2">Estoque Seguro</h6>
+                        <?php
+                        $saldoCategoria = $card['saldo_por_categoria'] ?? [];
+                        $saldoEfetivo = $card['saldo_por_categoria_efetivo'] ?? [];
+                        $ontEmMao = (int) ($saldoCategoria['ont'] ?? 0);
+                        ?>
                         <div class="d-flex flex-wrap gap-2 mb-3">
-                            <span class="badge text-bg-success">Roteadores: <?php echo (int) ($card['saldo_por_categoria']['roteador'] ?? 0); ?>/3</span>
-                            <span class="badge text-bg-primary">ONU: <?php echo (int) ($card['saldo_por_categoria']['onu'] ?? 0); ?>/2</span>
+                            <span class="badge text-bg-success">Roteadores (efetivo): <?php echo (int) ($saldoEfetivo['roteador'] ?? 0); ?>/3</span>
+                            <span class="badge text-bg-primary">ONU (efetivo): <?php echo (int) ($saldoEfetivo['onu'] ?? 0); ?>/2</span>
+                            <span class="badge text-bg-secondary">ONT em mão: <?php echo $ontEmMao; ?></span>
                             <span class="badge text-bg-info text-dark">Conectores: <?php echo (int) ($card['saldo_por_categoria']['conector_fibra'] ?? 0); ?>/10</span>
+                            <span class="badge text-bg-warning text-dark">Conector RJ: <?php echo (int) ($card['saldo_por_categoria']['conector_rj'] ?? 0); ?>/8</span>
+                            <span class="badge text-bg-light text-dark">Esticador: <?php echo (int) ($card['saldo_por_categoria']['esticador'] ?? 0); ?>/8</span>
                         </div>
+                        <?php if ($ontEmMao > 0): ?>
+                            <p class="text-muted small mb-3">Cada ONT em mão substitui 1 ONU e 1 roteador no cálculo de reposição.</p>
+                        <?php endif; ?>
                         <?php if (!empty($card['estoque_seguro_ok'])): ?>
                             <p class="text-success mb-3">Saldo seguro atendido.</p>
                         <?php else: ?>

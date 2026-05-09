@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS movimentacoes (
     tecnico_id INT UNSIGNED NULL,
     equipamento_id INT UNSIGNED NULL,
     quantidade INT NOT NULL,
-    tipo ENUM('entrada', 'saida', 'uso', 'uso_teste', 'recolhimento', 'entrega', 'devolucao') NOT NULL,
+    tipo ENUM('entrada', 'saida', 'uso', 'uso_teste', 'recolhimento', 'recolhimento_defeito', 'entrega', 'devolucao') NOT NULL,
     local_uso VARCHAR(120) NULL,
     observacoes VARCHAR(500) NULL,
     equipamento_nome_snapshot VARCHAR(120) NULL,
@@ -43,6 +43,22 @@ CREATE TABLE IF NOT EXISTS movimentacoes (
     CONSTRAINT chk_mov_quantidade_positive CHECK (quantidade > 0)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS inadimplencia_recolhimentos (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    titular VARCHAR(180) NOT NULL,
+    equipamento VARCHAR(180) NOT NULL,
+    contato VARCHAR(80) NULL,
+    endereco VARCHAR(255) NULL,
+    prazo DATE NULL,
+    status VARCHAR(40) NOT NULL DEFAULT 'AGUARDANDO',
+    tentativa_1 TEXT NULL,
+    observacoes VARCHAR(500) NULL,
+    origem_arquivo VARCHAR(180) NULL,
+    last_import_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 CREATE INDEX idx_equipamentos_nome ON equipamentos (nome);
 CREATE UNIQUE INDEX idx_equipamentos_codigo_barras ON equipamentos (codigo_barras);
 CREATE INDEX idx_tecnicos_nome ON tecnicos (nome);
@@ -51,3 +67,6 @@ CREATE INDEX idx_mov_equipamento_data ON movimentacoes (equipamento_id, data_mov
 CREATE INDEX idx_mov_tipo_data ON movimentacoes (tipo, data_movimentacao);
 CREATE INDEX idx_mov_local_uso ON movimentacoes (local_uso);
 CREATE INDEX idx_mov_observacoes ON movimentacoes (observacoes);
+CREATE INDEX idx_inadimplencia_status ON inadimplencia_recolhimentos (status);
+CREATE INDEX idx_inadimplencia_prazo ON inadimplencia_recolhimentos (prazo);
+CREATE INDEX idx_inadimplencia_titular ON inadimplencia_recolhimentos (titular);

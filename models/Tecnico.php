@@ -31,6 +31,15 @@ class Tecnico
         return $stmt->execute(['nome' => $nome]);
     }
 
+    public function update(int $id, string $nome): bool
+    {
+        $stmt = $this->conn->prepare('UPDATE tecnicos SET nome = :nome WHERE id = :id');
+        return $stmt->execute([
+            'id' => $id,
+            'nome' => $nome,
+        ]);
+    }
+
     public function delete(int $id): bool
     {
         $stmt = $this->conn->prepare('DELETE FROM tecnicos WHERE id = :id');

@@ -1,2 +1,2 @@
 ALTER TABLE movimentacoes
-    MODIFY COLUMN tipo ENUM('entrada', 'saida', 'uso', 'uso_teste', 'recolhimento', 'entrega', 'devolucao') NOT NULL;
+    MODIFY COLUMN tipo ENUM('entrada', 'saida', 'uso', 'uso_teste', 'recolhimento', 'recolhimento_defeito', 'entrega', 'devolucao') NOT NULL;

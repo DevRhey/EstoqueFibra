@@ -10,8 +10,16 @@
             <a class="nav-link sidebar-link <?php echo $currentRoute === 'dashboard' ? 'active' : ''; ?>" href="index.php?route=dashboard">Dashboard</a>
             <a class="nav-link sidebar-link <?php echo $currentRoute === 'movimentacoes' ? 'active' : ''; ?>" href="index.php?route=movimentacoes">Movimentacoes</a>
             <a class="nav-link sidebar-link <?php echo $currentRoute === 'tecnicos' ? 'active' : ''; ?>" href="index.php?route=tecnicos">Tecnicos</a>
+            <a class="nav-link sidebar-link <?php echo $currentRoute === 'lembretes' ? 'active' : ''; ?>" href="index.php?route=lembretes">
+                Lembretes
+                <?php if (!empty($lembretesResumo['pendentes'] ?? 0)): ?>
+                    <span class="badge text-bg-warning ms-2"><?php echo (int) $lembretesResumo['pendentes']; ?></span>
+                <?php endif; ?>
+            </a>
             <a class="nav-link sidebar-link <?php echo $currentRoute === 'testes' ? 'active' : ''; ?>" href="index.php?route=testes">Equipamentos em Teste</a>
             <a class="nav-link sidebar-link <?php echo $currentRoute === 'relatorios' ? 'active' : ''; ?>" href="index.php?route=relatorios">Relatorios + Cards</a>
+            <a class="nav-link sidebar-link <?php echo $currentRoute === 'apoio_compra' ? 'active' : ''; ?>" href="index.php?route=apoio_compra">Apoio Compra</a>
+            <a class="nav-link sidebar-link <?php echo $currentRoute === 'inadimplencia' ? 'active' : ''; ?>" href="index.php?route=inadimplencia">Inadimplencia</a>
         </nav>
 
         <?php if (is_array($automationAlerts)): ?>

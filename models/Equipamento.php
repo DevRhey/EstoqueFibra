@@ -14,7 +14,21 @@ class Equipamento
 
     public function all(): array
     {
-        $stmt = $this->conn->query('SELECT * FROM equipamentos ORDER BY nome ASC');
+        $stmt = $this->conn->query(
+            "SELECT *
+             FROM equipamentos
+             ORDER BY
+                CASE tipo
+                    WHEN 'roteador' THEN 1
+                    WHEN 'onu' THEN 2
+                    WHEN 'ont' THEN 3
+                    WHEN 'conector_rj' THEN 4
+                    WHEN 'conector_fibra' THEN 5
+                    WHEN 'insumos' THEN 6
+                    ELSE 99
+                END,
+                nome ASC"
+        );
         return $stmt->fetchAll();
     }
 
@@ -97,6 +111,29 @@ class Equipamento
     {
         $stmt = $this->conn->prepare('DELETE FROM equipamentos WHERE id = :id');
         return $stmt->execute(['id' => $id]);
+    }
+
+    public function handBalanceByTechnician(int $equipamentoId): array
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT m.tecnico_id,
+                    COALESCE(t.nome, 'Tecnico removido') AS tecnico_nome,
+                    SUM(CASE
+                            WHEN m.tipo IN ('entrega', 'saida') THEN m.quantidade
+                            WHEN m.tipo IN ('uso', 'uso_teste', 'devolucao', 'entrada') THEN -m.quantidade
+                            WHEN m.tipo IN ('recolhimento', 'recolhimento_defeito') THEN 0
+                            ELSE 0
+                        END) AS saldo_mao
+             FROM movimentacoes m
+             LEFT JOIN tecnicos t ON t.id = m.tecnico_id
+             WHERE m.equipamento_id = :equipamento_id
+             GROUP BY m.tecnico_id, t.nome
+             HAVING saldo_mao > 0
+             ORDER BY saldo_mao DESC, tecnico_nome ASC"
+        );
+
+        $stmt->execute(['equipamento_id' => $equipamentoId]);
+        return $stmt->fetchAll();
     }
 
     public function adjustStock(int $equipamentoId, int $delta): bool

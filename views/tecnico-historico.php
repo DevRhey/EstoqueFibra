@@ -1,11 +1,11 @@
 <?php
 $tecnico = $data['tecnico'] ?? null;
 $historico = $data['historico'] ?? [];
+$selectedDate = $data['selectedDate'] ?? date('Y-m-d');
 
-$hoje = date('Y-m-d');
 $historicoDoDia = [];
 foreach ($historico as $item) {
-    if (!empty($item['data_movimentacao']) && str_starts_with($item['data_movimentacao'], $hoje)) {
+    if (!empty($item['data_movimentacao']) && str_starts_with($item['data_movimentacao'], $selectedDate)) {
         $historicoDoDia[] = $item;
     }
 }
@@ -14,6 +14,7 @@ $movsEntregaDia = array_values(array_filter($historicoDoDia, static fn (array $i
 $movsUsoDia = array_values(array_filter($historicoDoDia, static fn (array $item): bool => ($item['tipo'] ?? '') === 'uso'));
 $movsUsoTesteDia = array_values(array_filter($historicoDoDia, static fn (array $item): bool => ($item['tipo'] ?? '') === 'uso_teste'));
 $movsRecolhimentoDia = array_values(array_filter($historicoDoDia, static fn (array $item): bool => ($item['tipo'] ?? '') === 'recolhimento'));
+$movsRecolhimentoDefeitoDia = array_values(array_filter($historicoDoDia, static fn (array $item): bool => ($item['tipo'] ?? '') === 'recolhimento_defeito'));
 $movsDevolucaoDia = array_values(array_filter($historicoDoDia, static fn (array $item): bool => ($item['tipo'] ?? '') === 'devolucao'));
 $historicoRecente = array_slice($historico, 0, 10);
 ?>
@@ -35,7 +36,17 @@ $historicoRecente = array_slice($historico, 0, 10);
                 <?php endif; ?>
             </div>
         </div>
-        <a href="index.php?route=tecnicos" class="btn btn-outline-primary">Voltar para Tecnicos</a>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <?php if ($tecnico): ?>
+                <form method="get" class="d-flex gap-2" style="margin: 0;">
+                    <input type="hidden" name="route" value="tecnico_historico">
+                    <input type="hidden" name="tecnico_id" value="<?php echo (int) $tecnico['id']; ?>">
+                    <input type="date" name="date" value="<?php echo htmlspecialchars($selectedDate); ?>" class="form-control form-control-sm" style="max-width: 180px;">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">Filtrar</button>
+                </form>
+            <?php endif; ?>
+            <a href="index.php?route=tecnicos" class="btn btn-outline-primary">Voltar para Tecnicos</a>
+        </div>
     </div>
 </div>
 
@@ -71,12 +82,31 @@ $historicoRecente = array_slice($historico, 0, 10);
                                 </div>
                                 <div class="small mb-1">
                                     <span class="text-muted">Tipo:</span>
-                                    <span class="badge <?php echo in_array($tipoItem, ['entrega', 'devolucao', 'recolhimento'], true) ? 'text-bg-success' : 'text-bg-warning'; ?>"><?php echo sanitize($tipoItem); ?></span>
+                                    <span class="badge <?php echo in_array($tipoItem, ['entrega', 'devolucao', 'recolhimento'], true) ? 'text-bg-success' : (($tipoItem === 'recolhimento_defeito') ? 'text-bg-danger' : 'text-bg-warning'); ?>"><?php echo sanitize($tipoItem); ?></span>
                                 </div>
                                 <div class="small mb-1"><span class="text-muted">Quantidade:</span> <strong><?php echo (int) $item['quantidade']; ?></strong></div>
                                 <div class="small mb-1"><span class="text-muted">Equipamento:</span> <?php echo sanitize($item['equipamento_tipo']); ?></div>
                                 <div class="small mb-1"><span class="text-muted">Local de uso:</span> <?php echo !empty($item['local_uso']) ? sanitize($item['local_uso']) : '-'; ?></div>
                                 <div class="small"><span class="text-muted">Observacoes:</span> <?php echo !empty($item['observacoes']) ? sanitize($item['observacoes']) : '-'; ?></div>
+                                <?php if (in_array($tipoItem, ['uso', 'uso_teste'], true)): ?>
+                                    <form method="post" class="mt-2" onsubmit="return confirm('Deseja realmente excluir este registro de uso?');">
+                                        <input type="hidden" name="action" value="movimentacao_delete_uso">
+                                        <input type="hidden" name="movimentacao_id" value="<?php echo (int) ($item['id'] ?? 0); ?>">
+                                        <input type="hidden" name="tipo" value="<?php echo sanitize($tipoItem); ?>">
+                                        <input type="hidden" name="return_route" value="tecnico_historico">
+                                        <input type="hidden" name="tecnico_id" value="<?php echo (int) ($tecnico['id'] ?? 0); ?>">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Excluir uso</button>
+                                    </form>
+                                <?php elseif ($tipoItem === 'entrega'): ?>
+                                    <form method="post" class="mt-2" onsubmit="return confirm('Deseja realmente excluir esta entrega? O estoque sera recomposto automaticamente.');">
+                                        <input type="hidden" name="action" value="movimentacao_delete_entrega">
+                                        <input type="hidden" name="movimentacao_id" value="<?php echo (int) ($item['id'] ?? 0); ?>">
+                                        <input type="hidden" name="tipo" value="<?php echo sanitize($tipoItem); ?>">
+                                        <input type="hidden" name="return_route" value="tecnico_historico">
+                                        <input type="hidden" name="tecnico_id" value="<?php echo (int) ($tecnico['id'] ?? 0); ?>">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Excluir entrega</button>
+                                    </form>
+                                <?php endif; ?>
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -107,6 +137,10 @@ $historicoRecente = array_slice($historico, 0, 10);
                 <div class="col-6 col-md-6 col-xl">
                     <small class="text-muted d-block">Recolhimentos</small>
                     <strong><?php echo count($movsRecolhimentoDia); ?></strong>
+                </div>
+                <div class="col-6 col-md-6 col-xl">
+                    <small class="text-muted d-block">Recolhidos com Defeito</small>
+                    <strong><?php echo count($movsRecolhimentoDefeitoDia); ?></strong>
                 </div>
                 <div class="col-6 col-md-6 col-xl">
                     <small class="text-muted d-block">Devolucoes</small>
@@ -141,6 +175,11 @@ $historicoRecente = array_slice($historico, 0, 10);
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link history-tab-pill" id="recolhimento-defeito-dia-tab" data-bs-toggle="tab" data-bs-target="#recolhimento-defeito-dia" type="button" role="tab" aria-controls="recolhimento-defeito-dia" aria-selected="false">
+                            Recolhimento com Defeito <span class="badge text-bg-danger ms-1"><?php echo count($movsRecolhimentoDefeitoDia); ?></span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link history-tab-pill" id="devolucao-dia-tab" data-bs-toggle="tab" data-bs-target="#devolucao-dia" type="button" role="tab" aria-controls="devolucao-dia" aria-selected="false">
                             Devolucao do Dia <span class="badge text-bg-primary ms-1"><?php echo count($movsDevolucaoDia); ?></span>
                         </button>
@@ -155,6 +194,7 @@ $historicoRecente = array_slice($historico, 0, 10);
                 'uso-dia' => ['itens' => $movsUsoDia, 'vazio' => 'Nenhum uso registrado hoje.'],
                 'uso-teste-dia' => ['itens' => $movsUsoTesteDia, 'vazio' => 'Nenhum uso em teste registrado hoje.'],
                 'recolhimento-dia' => ['itens' => $movsRecolhimentoDia, 'vazio' => 'Nenhum recolhimento registrado hoje.'],
+                'recolhimento-defeito-dia' => ['itens' => $movsRecolhimentoDefeitoDia, 'vazio' => 'Nenhum recolhimento com defeito registrado hoje.'],
                 'devolucao-dia' => ['itens' => $movsDevolucaoDia, 'vazio' => 'Nenhuma devolucao registrada hoje.'],
             ];
             $abaIndex = 0;
@@ -166,6 +206,7 @@ $historicoRecente = array_slice($historico, 0, 10);
                     <?php else: ?>
                         <div class="row g-3">
                             <?php foreach ($config['itens'] as $item): ?>
+                                <?php $tipoItem = (string) ($item['tipo'] ?? ''); ?>
                                 <div class="col-12 col-lg-6">
                                     <div class="history-item-card h-100">
                                         <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
@@ -174,12 +215,31 @@ $historicoRecente = array_slice($historico, 0, 10);
                                         </div>
                                         <div class="small mb-1">
                                             <span class="text-muted">Tipo:</span>
-                                            <span class="badge <?php echo in_array($item['tipo'], ['entrega', 'devolucao', 'recolhimento'], true) ? 'text-bg-success' : 'text-bg-warning'; ?>"><?php echo sanitize($item['tipo']); ?></span>
+                                            <span class="badge <?php echo in_array($item['tipo'], ['entrega', 'devolucao', 'recolhimento'], true) ? 'text-bg-success' : (($item['tipo'] === 'recolhimento_defeito') ? 'text-bg-danger' : 'text-bg-warning'); ?>"><?php echo sanitize($item['tipo']); ?></span>
                                         </div>
                                         <div class="small mb-1"><span class="text-muted">Quantidade:</span> <strong><?php echo (int) $item['quantidade']; ?></strong></div>
                                         <div class="small mb-1"><span class="text-muted">Equipamento:</span> <?php echo sanitize($item['equipamento_tipo']); ?></div>
                                         <div class="small mb-1"><span class="text-muted">Local de uso:</span> <?php echo !empty($item['local_uso']) ? sanitize($item['local_uso']) : '-'; ?></div>
                                         <div class="small"><span class="text-muted">Observacoes:</span> <?php echo !empty($item['observacoes']) ? sanitize($item['observacoes']) : '-'; ?></div>
+                                        <?php if (in_array($tipoItem, ['uso', 'uso_teste'], true)): ?>
+                                            <form method="post" class="mt-2" onsubmit="return confirm('Deseja realmente excluir este registro de uso?');">
+                                                <input type="hidden" name="action" value="movimentacao_delete_uso">
+                                                <input type="hidden" name="movimentacao_id" value="<?php echo (int) ($item['id'] ?? 0); ?>">
+                                                <input type="hidden" name="tipo" value="<?php echo sanitize($tipoItem); ?>">
+                                                <input type="hidden" name="return_route" value="tecnico_historico">
+                                                <input type="hidden" name="tecnico_id" value="<?php echo (int) ($tecnico['id'] ?? 0); ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Excluir uso</button>
+                                            </form>
+                                        <?php elseif ($tipoItem === 'entrega'): ?>
+                                            <form method="post" class="mt-2" onsubmit="return confirm('Deseja realmente excluir esta entrega? O estoque sera recomposto automaticamente.');">
+                                                <input type="hidden" name="action" value="movimentacao_delete_entrega">
+                                                <input type="hidden" name="movimentacao_id" value="<?php echo (int) ($item['id'] ?? 0); ?>">
+                                                <input type="hidden" name="tipo" value="<?php echo sanitize($tipoItem); ?>">
+                                                <input type="hidden" name="return_route" value="tecnico_historico">
+                                                <input type="hidden" name="tecnico_id" value="<?php echo (int) ($tecnico['id'] ?? 0); ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Excluir entrega</button>
+                                            </form>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>

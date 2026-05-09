@@ -52,6 +52,9 @@ body {
 
 .sidebar-wrap {
     min-height: 100vh;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
 }
 
 .sidebar {
@@ -59,6 +62,22 @@ body {
     color: #dbeeff;
     position: sticky;
     top: 0;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.sticky-date-filter {
+    position: sticky;
+    top: 0.75rem;
+    z-index: 30;
+    backdrop-filter: blur(6px);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.sticky-date-filter.is-stuck {
+    border-color: rgba(90, 175, 231, 0.45);
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(90, 175, 231, 0.16);
+    transform: translateY(0);
 }
 
 .brand-badge {
@@ -540,6 +559,14 @@ body {
 .card-soft .bg-light .text-muted,
 .card-soft .alert-light .text-muted {
     color: #cddcec !important;
+}
+
+.card-soft .alert-danger,
+.card-soft .alert-danger strong,
+.card-soft .alert-danger span,
+.card-soft .alert-danger small,
+.card-soft .alert-danger div {
+    color: #5f1a22 !important;
 }
 
 .card-soft .accordion-button:not(.collapsed) {
@@ -1047,6 +1074,26 @@ body {
     pointer-events: none;
 }
 
+.js-inadimplencia-preview {
+    border-radius: 12px;
+}
+
+.js-inadimplencia-preview .table td,
+.js-inadimplencia-preview .table th {
+    white-space: nowrap;
+    vertical-align: top;
+}
+
+#modal-editar-inadimplencia .modal-content {
+    background: rgba(18, 28, 42, 0.98);
+    border: 1px solid rgba(159, 178, 204, 0.24);
+}
+
+#modal-editar-inadimplencia .modal-body label,
+#modal-editar-inadimplencia .modal-title {
+    color: #eef5ff;
+}
+
 .history-tabs-pills.card-header-tabs {
     border-bottom: 0;
     margin-bottom: 0;
@@ -1514,11 +1561,22 @@ body {
     .sidebar {
         position: relative;
         min-height: auto;
+        height: auto;
+        overflow-y: visible;
         border-radius: 0 0 18px 18px;
     }
 
     .sidebar-wrap {
+        position: static;
         min-height: auto;
+        height: auto;
+    }
+
+    .sticky-date-filter {
+        position: relative;
+        top: 0;
+        z-index: auto;
+        backdrop-filter: none;
     }
 
     .sidebar {

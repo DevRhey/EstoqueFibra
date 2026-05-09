@@ -3,6 +3,10 @@ $equipamentos = $data['equipamentos'] ?? [];
 $tecnicos = $data['tecnicos'] ?? [];
 $cardsTecnicos = $data['cardsTecnicos'] ?? [];
 $selectedDate = $data['selectedDate'] ?? date('Y-m-d');
+$equipamentosEmMaoPorTecnico = [];
+foreach ($cardsTecnicos as $card) {
+    $equipamentosEmMaoPorTecnico[(int) ($card['tecnico_id'] ?? 0)] = $card['equipamentos_mao'] ?? [];
+}
 $resumoDia = $data['resumoDia'] ?? [
     'total' => 0,
     'entrega' => 0,
@@ -10,12 +14,15 @@ $resumoDia = $data['resumoDia'] ?? [
     'uso_teste' => 0,
     'devolucao' => 0,
     'recolhimento' => 0,
+    'recolhimento_defeito' => 0,
     'tecnicos_ativos' => 0,
 ];
 $estoqueSeguroLabels = [
     'roteador' => 'Roteadores',
     'onu' => 'ONU',
     'conector_fibra' => 'Conectores',
+    'conector_rj' => 'Conector RJ',
+    'esticador' => 'Esticador',
 ];
 ?>
 
@@ -39,7 +46,7 @@ $estoqueSeguroLabels = [
                     <div class="dashboard-quick-action-icon">+</div>
                     <div>
                         <strong>Novo equipamento</strong>
-                        <div class="small">Cadastrar roteador, ONU, ONT ou conector</div>
+                        <div class="small">Cadastrar roteador, ONU, ONT, conector ou insumos</div>
                     </div>
                 </button>
             </div>
@@ -56,7 +63,7 @@ $estoqueSeguroLabels = [
     </div>
 </div>
 
-<div class="card card-soft reveal mb-4">
+<div class="card card-soft reveal mb-4 sticky-date-filter">
     <div class="card-body">
         <form method="get" class="row g-3 align-items-end">
             <input type="hidden" name="route" value="dashboard">
@@ -72,6 +79,53 @@ $estoqueSeguroLabels = [
                 <small class="text-muted">Exibindo dados do dia: <strong><?php echo date('d/m/Y', strtotime($selectedDate)); ?></strong></small>
             </div>
         </form>
+    </div>
+</div>
+
+<div class="card card-soft reveal mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Operacoes de Movimentacao</h5>
+        <span class="badge text-bg-primary">Operar sem sair do dashboard</span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-sm-6 col-lg-4 col-xl">
+                <button class="btn btn-success w-100 h-100 p-3" data-bs-toggle="modal" data-bs-target="#modal-entrega">
+                    <strong>Entregar</strong>
+                    <small class="d-block mt-1">Equipamento ao tecnico</small>
+                </button>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-4 col-xl">
+                <button class="btn btn-warning w-100 h-100 p-3" data-bs-toggle="modal" data-bs-target="#modal-uso">
+                    <strong>Registrar Uso</strong>
+                    <small class="d-block mt-1">Uso no cliente</small>
+                </button>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-4 col-xl">
+                <button class="btn btn-dark w-100 h-100 p-3" data-bs-toggle="modal" data-bs-target="#modal-uso-teste">
+                    <strong>Uso em Teste</strong>
+                    <small class="d-block mt-1">Teste de 3 dias</small>
+                </button>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-6 col-xl">
+                <button class="btn btn-info w-100 h-100 p-3" data-bs-toggle="modal" data-bs-target="#modal-recolhimento">
+                    <strong>Recolher</strong>
+                    <small class="d-block mt-1">Coleta de cliente</small>
+                </button>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-6 col-xl">
+                <button class="btn btn-danger w-100 h-100 p-3" data-bs-toggle="modal" data-bs-target="#modal-recolhimento-defeito">
+                    <strong>Recolher c/ defeito</strong>
+                    <small class="d-block mt-1">Lista especial de defeitos</small>
+                </button>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-6 col-xl">
+                <button class="btn btn-primary w-100 h-100 p-3" data-bs-toggle="modal" data-bs-target="#modal-devolucao">
+                    <strong>Devolver</strong>
+                    <small class="d-block mt-1">Retorno ao estoque</small>
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -138,6 +192,19 @@ $estoqueSeguroLabels = [
                     </span>
                 </div>
                 <h3 class="mb-0"><?php echo (int) ($resumoDia['recolhimento'] ?? 0); ?></h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card card-soft history-stat-card history-stat-card-recolhimento-defeito h-100">
+            <div class="card-body">
+                <div class="history-stat-head">
+                    <small class="text-muted d-block">Com defeito</small>
+                    <span class="history-stat-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" role="img" focusable="false"><path d="M12 2 1 21h22L12 2zm0 6 1 6h-2l1-6zm0 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" fill="currentColor"/></svg>
+                    </span>
+                </div>
+                <h3 class="mb-0"><?php echo (int) ($resumoDia['recolhimento_defeito'] ?? 0); ?></h3>
             </div>
         </div>
     </div>
@@ -323,21 +390,33 @@ $estoqueSeguroLabels = [
                         <div class="mb-3 pb-3 border-bottom">
                             <h6 class="mb-2"><small>Acoes Rapidas</small></h6>
                             <div class="d-flex flex-wrap gap-2">
-                                <a href="index.php?route=movimentacoes&tipo=entrega&tecnico_id=<?php echo (int) ($card['tecnico_id'] ?? 0); ?>" class="btn btn-sm btn-action-filled btn-action-entrega">Entrega</a>
-                                <a href="index.php?route=movimentacoes&tipo=uso&tecnico_id=<?php echo (int) ($card['tecnico_id'] ?? 0); ?>" class="btn btn-sm btn-action-filled btn-action-uso">Uso</a>
-                                <a href="index.php?route=movimentacoes&tipo=uso_teste&tecnico_id=<?php echo (int) ($card['tecnico_id'] ?? 0); ?>" class="btn btn-sm btn-action-filled btn-action-teste">Uso Teste</a>
-                                <a href="index.php?route=movimentacoes&tipo=devolucao&tecnico_id=<?php echo (int) ($card['tecnico_id'] ?? 0); ?>" class="btn btn-sm btn-action-filled btn-action-devolucao">Devolucao</a>
-                                <a href="index.php?route=movimentacoes&tipo=recolhimento&tecnico_id=<?php echo (int) ($card['tecnico_id'] ?? 0); ?>" class="btn btn-sm btn-action-filled btn-action-recolhimento">Recolhimento</a>
+                                <button type="button" class="btn btn-sm btn-action-filled btn-action-entrega" data-bs-toggle="modal" data-bs-target="#modal-entrega" data-tecnico-id="<?php echo (int) ($card['tecnico_id'] ?? 0); ?>">Entrega</button>
+                                <button type="button" class="btn btn-sm btn-action-filled btn-action-uso" data-bs-toggle="modal" data-bs-target="#modal-uso" data-tecnico-id="<?php echo (int) ($card['tecnico_id'] ?? 0); ?>">Uso</button>
+                                <button type="button" class="btn btn-sm btn-action-filled btn-action-teste" data-bs-toggle="modal" data-bs-target="#modal-uso-teste" data-tecnico-id="<?php echo (int) ($card['tecnico_id'] ?? 0); ?>">Uso Teste</button>
+                                <button type="button" class="btn btn-sm btn-action-filled btn-action-devolucao" data-bs-toggle="modal" data-bs-target="#modal-devolucao" data-tecnico-id="<?php echo (int) ($card['tecnico_id'] ?? 0); ?>">Devolucao</button>
+                                <button type="button" class="btn btn-sm btn-action-filled btn-action-recolhimento" data-bs-toggle="modal" data-bs-target="#modal-recolhimento" data-tecnico-id="<?php echo (int) ($card['tecnico_id'] ?? 0); ?>">Recolhimento</button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modal-recolhimento-defeito" data-tecnico-id="<?php echo (int) ($card['tecnico_id'] ?? 0); ?>">Com defeito</button>
                             </div>
                         </div>
 
                         <div class="mb-3 pb-3 border-bottom">
                             <h6 class="mb-2"><small>Estoque Seguro</small></h6>
+                            <?php
+                            $saldoCategoria = $card['saldo_por_categoria'] ?? [];
+                            $saldoEfetivo = $card['saldo_por_categoria_efetivo'] ?? [];
+                            $ontEmMao = (int) ($saldoCategoria['ont'] ?? 0);
+                            ?>
                             <div class="d-flex flex-wrap gap-2 mb-2">
-                                <span class="badge text-bg-success">Roteadores: <?php echo (int) ($card['saldo_por_categoria']['roteador'] ?? 0); ?>/3</span>
-                                <span class="badge text-bg-primary">ONU: <?php echo (int) ($card['saldo_por_categoria']['onu'] ?? 0); ?>/2</span>
+                                <span class="badge text-bg-success">Roteadores (efetivo): <?php echo (int) ($saldoEfetivo['roteador'] ?? 0); ?>/3</span>
+                                <span class="badge text-bg-primary">ONU (efetivo): <?php echo (int) ($saldoEfetivo['onu'] ?? 0); ?>/2</span>
+                                <span class="badge text-bg-secondary">ONT em mão: <?php echo $ontEmMao; ?></span>
                                 <span class="badge text-bg-info text-dark">Conectores: <?php echo (int) ($card['saldo_por_categoria']['conector_fibra'] ?? 0); ?>/10</span>
+                                <span class="badge text-bg-warning text-dark">Conector RJ: <?php echo (int) ($card['saldo_por_categoria']['conector_rj'] ?? 0); ?>/8</span>
+                                <span class="badge text-bg-light text-dark">Esticador: <?php echo (int) ($card['saldo_por_categoria']['esticador'] ?? 0); ?>/8</span>
                             </div>
+                            <?php if ($ontEmMao > 0): ?>
+                                <small class="text-muted d-block mb-2">Cada ONT em mão substitui 1 ONU e 1 roteador no cálculo de reposição.</small>
+                            <?php endif; ?>
                             <?php if (!empty($card['estoque_seguro_ok'])): ?>
                                 <p class="text-success mb-0"><small>Estoque seguro atendido para a data selecionada.</small></p>
                             <?php else: ?>
@@ -360,11 +439,26 @@ $estoqueSeguroLabels = [
                             <?php if (empty($card['equipamentos_mao'])): ?>
                                 <p class="text-muted mb-0"><small>Nenhum item em aberto.</small></p>
                             <?php else: ?>
-                                <div class="d-flex flex-wrap gap-1">
+                                <div class="d-flex flex-column gap-2">
                                     <?php foreach ($card['equipamentos_mao'] as $eq): ?>
-                                        <span class="badge rounded-pill text-bg-secondary text-truncate" title="<?php echo sanitize($eq['nome']); ?>: <?php echo (int) $eq['saldo_mao']; ?>">
-                                            <?php echo sanitize($eq['nome']); ?>: <?php echo (int) $eq['saldo_mao']; ?>
-                                        </span>
+                                        <div class="d-flex justify-content-between align-items-center gap-2 dark-panel-subtle rounded p-2">
+                                            <span class="badge rounded-pill text-bg-secondary text-truncate" title="<?php echo sanitize($eq['nome']); ?>: <?php echo (int) $eq['saldo_mao']; ?>">
+                                                <?php echo sanitize($eq['nome']); ?>: <?php echo (int) $eq['saldo_mao']; ?>
+                                            </span>
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm btn-outline-light js-ajuste-mao-btn"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#ajusteMaoModal"
+                                                data-tecnico-id="<?php echo (int) ($card['tecnico_id'] ?? 0); ?>"
+                                                data-tecnico-nome="<?php echo sanitize((string) ($card['tecnico_nome'] ?? '')); ?>"
+                                                data-equipamento-id="<?php echo (int) ($eq['equipamento_id'] ?? 0); ?>"
+                                                data-equipamento-nome="<?php echo sanitize((string) ($eq['nome'] ?? '')); ?>"
+                                                data-saldo-atual="<?php echo (int) ($eq['saldo_mao'] ?? 0); ?>"
+                                            >
+                                                Ajustar
+                                            </button>
+                                        </div>
                                     <?php endforeach; ?>
                                 </div>
                             <?php endif; ?>
@@ -425,126 +519,69 @@ $estoqueSeguroLabels = [
     <?php endif; ?>
 </div>
 
+<!-- Modal: ENTREGA -->
+<?php
+    $return_route = 'dashboard';
+    require __DIR__ . '/partials/modal-entrega.php';
+?>
+
+<!-- Modal: USO -->
+<?php
+    $return_route = 'dashboard';
+    $require_local_uso = false;
+    require __DIR__ . '/partials/modal-uso.php';
+?>
+
+<!-- Modal: USO TESTE -->
+<?php
+    $return_route = 'dashboard';
+    require __DIR__ . '/partials/modal-uso-teste.php';
+?>
+
+<!-- Modal: RECOLHIMENTO -->
+<?php
+    $return_route = 'dashboard';
+    $include_batch = true;
+    require __DIR__ . '/partials/modal-recolhimento.php';
+?>
+
+<!-- Modal: RECOLHIMENTO COM DEFEITO -->
+<?php
+    $return_route = 'dashboard';
+    $include_batch = true;
+    require __DIR__ . '/partials/modal-recolhimento-defeito.php';
+?>
+
+<!-- Modal: DEVOLUCAO -->
+<?php
+    $return_route = 'dashboard';
+    $include_batch = true;
+    require __DIR__ . '/partials/modal-devolucao.php';
+?>
+
+<?php require __DIR__ . '/partials/modal-ajuste-mao.php'; ?>
+
 <!-- MODAIS -->
 
 <!-- Modal: Novo Equipamento -->
-<div class="modal fade" id="novoEquipamentoModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="post" class="needs-validation js-movement-form" novalidate>
-                <div class="modal-header">
-                    <h5 class="modal-title">Cadastrar Novo Equipamento</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="action" value="equipamento_store">
-                    <div class="mb-3">
-                        <label class="form-label">Nome</label>
-                        <input type="text" name="nome" class="form-control" required maxlength="120">
-                        <div class="invalid-feedback">Informe o nome.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Tipo</label>
-                        <select name="tipo" class="form-select" required>
-                            <option value="">Selecione</option>
-                            <option value="roteador">Roteador</option>
-                            <option value="onu">ONU</option>
-                            <option value="ont">ONT</option>
-                            <option value="conector_fibra">Conector de Fibra</option>
-                        </select>
-                        <div class="invalid-feedback">Selecione o tipo.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Código de Barras</label>
-                        <input type="text" name="codigo_barras" class="form-control" maxlength="64" placeholder="Leia com o scanner ou digite manualmente">
-                        <div class="form-text">Opcional. Deve ser único para cada equipamento.</div>
-                    </div>
-                    <div>
-                        <label class="form-label">Quantidade Inicial</label>
-                        <input type="number" name="quantidade" class="form-control" required min="0">
-                        <div class="invalid-feedback">Informe uma quantidade válida.</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Cadastrar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+<?php require __DIR__ . '/partials/modal-novo-equipamento.php'; ?>
 
 <!-- Modal: Editar Equipamento -->
-<div class="modal fade" id="editarEquipamentoModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="post" class="needs-validation" novalidate>
-                <div class="modal-header">
-                    <h5 class="modal-title">Editar Equipamento</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="action" value="equipamento_update">
-                    <input type="hidden" name="id" id="edit-equip-id">
-                    <div class="mb-3">
-                        <label class="form-label">Nome</label>
-                        <input type="text" name="nome" id="edit-equip-nome" class="form-control" required>
-                        <div class="invalid-feedback">Campo obrigatório.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Tipo</label>
-                        <select name="tipo" id="edit-equip-tipo" class="form-select" required>
-                            <option value="">Selecione</option>
-                            <option value="roteador">Roteador</option>
-                            <option value="onu">ONU</option>
-                            <option value="ont">ONT</option>
-                            <option value="conector_fibra">Conector de Fibra</option>
-                        </select>
-                        <div class="invalid-feedback">Campo obrigatório.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Código de Barras</label>
-                        <input type="text" name="codigo_barras" id="edit-equip-codigo" class="form-control" maxlength="64" placeholder="Leia com o scanner ou digite manualmente">
-                        <div class="form-text">Opcional. Deve ser único para cada equipamento.</div>
-                    </div>
-                    <div>
-                        <label class="form-label">Quantidade</label>
-                        <input type="number" name="quantidade" id="edit-equip-quantidade" class="form-control" required min="0">
-                        <div class="invalid-feedback">Campo obrigatório.</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+<?php require __DIR__ . '/partials/modal-editar-equipamento.php'; ?>
 
 <!-- Modal: Novo Tecnico -->
-<div class="modal fade" id="novoTecnicoModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="post" class="needs-validation" novalidate>
-                <div class="modal-header">
-                    <h5 class="modal-title">Cadastrar Novo Técnico</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="action" value="tecnico_store">
-                    <div class="mb-3">
-                        <label class="form-label">Nome do Técnico</label>
-                        <input type="text" name="nome" class="form-control" required maxlength="120">
-                        <div class="invalid-feedback">Informe o nome.</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Cadastrar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+<?php require __DIR__ . '/partials/modal-novo-tecnico.php'; ?>
+
+<script type="application/json" id="movement-equipment-map"><?php echo json_encode([
+    'all' => array_map(static function (array $eq): array {
+        return [
+            'id' => (int) $eq['id'],
+            'nome' => $eq['nome'],
+            'tipo' => $eq['tipo'],
+            'codigo_barras' => $eq['codigo_barras'] ?? null,
+            'quantidade' => (int) $eq['quantidade'],
+        ];
+    }, $equipamentos),
+    'handByTechnician' => $equipamentosEmMaoPorTecnico,
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?></script>
 

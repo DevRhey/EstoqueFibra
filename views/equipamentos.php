@@ -26,7 +26,9 @@
                             <option value="roteador">Roteador</option>
                             <option value="onu">ONU</option>
                             <option value="ont">ONT</option>
+                            <option value="conector_rj">Conector RJ</option>
                             <option value="conector_fibra">Conector de Fibra</option>
+                            <option value="insumos">Insumos</option>
                         </select>
                         <div class="invalid-feedback">Selecione o tipo.</div>
                     </div>
@@ -130,7 +132,9 @@
                             <option value="roteador">Roteador</option>
                             <option value="onu">ONU</option>
                             <option value="ont">ONT</option>
+                            <option value="conector_rj">Conector RJ</option>
                             <option value="conector_fibra">Conector de Fibra</option>
+                            <option value="insumos">Insumos</option>
                         </select>
                         <div class="invalid-feedback">Campo obrigatório.</div>
                     </div>

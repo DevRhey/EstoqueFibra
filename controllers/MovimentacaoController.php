@@ -17,17 +17,73 @@ class MovimentacaoController
         $this->tecnicoModel = new Tecnico();
     }
 
-    public function index(): array
+    public function index(?string $selectedDate = null): array
     {
-        $cardsTecnicos = $this->movimentacaoModel->reportCardsTecnicos();
-        $alertasUsoTeste = $this->movimentacaoModel->reportAlertasUsoTeste();
+        $selectedDate = $this->normalizeDate($selectedDate) ?? date('Y-m-d');
+        $cardsTecnicos = $this->movimentacaoModel->reportCardsTecnicos($selectedDate);
+        $alertasUsoTeste = $this->movimentacaoModel->reportAlertasUsoTeste($selectedDate);
+        $defectFilterDate = $this->normalizeDate((string) ($_GET['defect_date'] ?? '')) ?? $selectedDate;
+        $aparelhosComDefeito = $this->movimentacaoModel->reportAparelhosComDefeito($defectFilterDate);
+        $recolhimentosSemLastro = $this->movimentacaoModel->reportRecolhimentosSemLastro($selectedDate);
+        $integrityIssues = $this->movimentacaoModel->reportMovementIntegrityIssues($selectedDate);
+
+        $usageApply = isset($_GET['usage_apply']) && (string) $_GET['usage_apply'] === '1';
+        $usageTecnicoId = (int) ($_GET['usage_tecnico_id'] ?? 0);
+        $usageEquipmentType = sanitizeInput((string) ($_GET['usage_equipment_type'] ?? ''));
+        $usageStartDefault = date('Y-m-d', strtotime($selectedDate . ' -6 days'));
+        $usageEndDefault = $selectedDate;
+        $usageStart = $this->normalizeDate((string) ($_GET['usage_start'] ?? '')) ?? $usageStartDefault;
+        $usageEnd = $this->normalizeDate((string) ($_GET['usage_end'] ?? '')) ?? $usageEndDefault;
+
+        if ($usageStart > $usageEnd) {
+            [$usageStart, $usageEnd] = [$usageEnd, $usageStart];
+        }
+
+        $usageReport = [];
+        if ($usageApply) {
+            $usageReport = $this->movimentacaoModel->reportUsoPorTecnicoPeriodo(
+                $usageTecnicoId > 0 ? $usageTecnicoId : null,
+                $usageStart,
+                $usageEnd,
+                $usageEquipmentType !== '' ? $usageEquipmentType : null
+            );
+        }
+
+        $usageSummary = [
+            'total_itens' => count($usageReport),
+            'total_quantidade' => 0,
+            'total_registros' => 0,
+            'dias_periodo' => max(
+                1,
+                (int) ((new DateTimeImmutable($usageStart))->diff(new DateTimeImmutable($usageEnd))->days ?? 0) + 1
+            ),
+        ];
+
+        foreach ($usageReport as $row) {
+            $usageSummary['total_quantidade'] += (int) ($row['total_usado'] ?? 0);
+            $usageSummary['total_registros'] += (int) ($row['total_registros'] ?? 0);
+        }
 
         return [
-            'movimentacoes' => $this->movimentacaoModel->allWithRelations(),
+            'movimentacoes' => $this->movimentacaoModel->allWithRelations($selectedDate),
             'equipamentos' => $this->equipamentoModel->all(),
             'tecnicos' => $this->tecnicoModel->all(),
             'cardsTecnicos' => $cardsTecnicos,
             'alertasUsoTeste' => $alertasUsoTeste,
+            'aparelhosComDefeito' => $aparelhosComDefeito,
+            'defectFilterDate' => $defectFilterDate,
+            'recolhimentosSemLastro' => $recolhimentosSemLastro,
+            'integrityIssues' => $integrityIssues,
+            'selectedDate' => $selectedDate,
+            'usageFilters' => [
+                'apply' => $usageApply,
+                'tecnico_id' => $usageTecnicoId,
+                'equipamento_tipo' => $usageEquipmentType,
+                'start' => $usageStart,
+                'end' => $usageEnd,
+            ],
+            'usageReport' => $usageReport,
+            'usageSummary' => $usageSummary,
             'automation' => $this->automationAlerts($cardsTecnicos, $alertasUsoTeste),
         ];
     }
@@ -45,12 +101,14 @@ class MovimentacaoController
             'uso_teste' => 0,
             'devolucao' => 0,
             'recolhimento' => 0,
+            'recolhimento_defeito' => 0,
             'tecnicos_ativos' => 0,
         ];
 
         $tecnicosAtivos = [];
         foreach ($movimentacoesDia as $mov) {
             $tipo = $mov['tipo'] ?? '';
+
             if (isset($resumoDia[$tipo])) {
                 $resumoDia[$tipo]++;
             }
@@ -75,22 +133,76 @@ class MovimentacaoController
 
     public function store(array $data): void
     {
+        $cardsTecnicosCache = null;
+
         $tecnicoId = (int) ($data['tecnico_id'] ?? 0);
         $equipamentoId = (int) ($data['equipamento_id'] ?? 0);
         $quantidade = (int) ($data['quantidade'] ?? 0);
-        $tipo = sanitize($data['tipo'] ?? '');
-        $localUso = sanitize($data['local_uso'] ?? '');
-        $observacoes = sanitize($data['observacoes'] ?? '');
+        $tipo = sanitizeInput($data['tipo'] ?? '');
+        $dataMovimentacaoRaw = (string) ($data['data_movimentacao'] ?? '');
+        $dataMovimentacaoLocalRaw = (string) ($data['data_movimentacao_local'] ?? '');
+        $dataMovimentacao = $this->normalizeDate($dataMovimentacaoRaw);
+        $dataMovimentacaoLocal = $this->normalizeDateTime($dataMovimentacaoLocalRaw);
+        $selectedDate = $this->normalizeDate((string) ($data['selected_date'] ?? ''));
+        $returnRoute = sanitizeInput((string) ($data['return_route'] ?? 'movimentacoes'));
+        $localUso = sanitizeInput($data['local_uso'] ?? '');
+        $observacoes = sanitizeInput($data['observacoes'] ?? '');
+        $motivoDefeito = sanitizeInput((string) ($data['motivo_defeito'] ?? ''));
+        $serialEquipamento = sanitizeInput((string) ($data['serial_equipamento'] ?? ''));
         $itensJson = $data['itens_json'] ?? '';
 
-        $tiposValidos = ['entrega', 'devolucao', 'uso', 'uso_teste', 'recolhimento', 'saida', 'entrada'];
+        if (!in_array($returnRoute, ['movimentacoes', 'dashboard'], true)) {
+            $returnRoute = 'movimentacoes';
+        }
+
+        $tiposValidos = ['entrega', 'devolucao', 'uso', 'uso_teste', 'recolhimento', 'recolhimento_defeito', 'saida', 'entrada'];
+
+        $tecnicoObrigatorio = in_array($tipo, $tiposValidos, true);
+        $tecnicoIdFinal = $tecnicoId > 0 ? $tecnicoId : null;
+
+        if ($tecnicoObrigatorio && $tecnicoIdFinal === null) {
+            setFlash('danger', 'Selecione um tecnico para registrar esta movimentacao.');
+            $this->redirectRouteWithDate($returnRoute, $selectedDate);
+        }
+
+        if ($tipo === 'recolhimento_defeito' && $motivoDefeito === '') {
+            setFlash('danger', 'Informe o motivo ou defeito do equipamento recolhido com defeito.');
+            $this->redirectRouteWithDate($returnRoute, $selectedDate);
+        }
+
+        if ($tipo === 'recolhimento_defeito') {
+            $partesObservacao = [];
+            if (trim($serialEquipamento) !== '') {
+                $partesObservacao[] = 'Serial: ' . $serialEquipamento;
+            }
+
+            $partesObservacao[] = 'Defeito: ' . $motivoDefeito;
+
+            if (trim($observacoes) !== '') {
+                $partesObservacao[] = $observacoes;
+            }
+
+            $observacoes = implode(' | ', $partesObservacao);
+        }
+
+        if ($dataMovimentacaoRaw !== '' && $dataMovimentacao === null) {
+            setFlash('danger', 'Data de movimentacao invalida. Use o formato AAAA-MM-DD.');
+            $this->redirectRouteWithDate($returnRoute, $selectedDate);
+        }
+
+        if ($dataMovimentacaoLocalRaw !== '' && $dataMovimentacaoLocal === null) {
+            setFlash('danger', 'Data/hora local invalida para a movimentacao.');
+            $this->redirectRouteWithDate($returnRoute, $selectedDate);
+        }
+
+        $dataMovimentacaoFinal = $dataMovimentacaoLocal ?? $dataMovimentacao;
 
         if (is_string($itensJson) && trim($itensJson) !== '') {
             $itens = json_decode($itensJson, true);
 
-            if (!is_array($itens) || empty($itens) || $tecnicoId <= 0 || !in_array($tipo, $tiposValidos, true)) {
+            if (!is_array($itens) || empty($itens) || !in_array($tipo, $tiposValidos, true)) {
                 setFlash('danger', 'Dados invalidos para registrar lote de movimentacoes.');
-                redirect('movimentacoes');
+                $this->redirectRouteWithDate($returnRoute, $selectedDate);
             }
 
             try {
@@ -102,8 +214,24 @@ class MovimentacaoController
 
                     $itemEquipamentoId = (int) ($item['equipamento_id'] ?? 0);
                     $itemQuantidade = (int) ($item['quantidade'] ?? 0);
-                    $itemLocalUso = sanitize((string) ($item['local_uso'] ?? ''));
-                    $itemObservacoes = sanitize((string) ($item['observacoes'] ?? ''));
+                    $itemLocalUso = sanitizeInput((string) ($item['local_uso'] ?? ''));
+                    $itemObservacoes = sanitizeInput((string) ($item['observacoes'] ?? ''));
+
+                    if ($tipo === 'recolhimento_defeito') {
+                        $partesObservacaoItem = [];
+
+                        if (trim($serialEquipamento) !== '') {
+                            $partesObservacaoItem[] = 'Serial: ' . $serialEquipamento;
+                        }
+
+                        $partesObservacaoItem[] = 'Defeito: ' . $motivoDefeito;
+
+                        if (trim($itemObservacoes) !== '') {
+                            $partesObservacaoItem[] = $itemObservacoes;
+                        }
+
+                        $itemObservacoes = implode(' | ', $partesObservacaoItem);
+                    }
 
                     if ($itemEquipamentoId <= 0 || $itemQuantidade <= 0) {
                         throw new RuntimeException('Item de lote invalido na posicao ' . ($index + 1) . '.');
@@ -121,19 +249,20 @@ class MovimentacaoController
                     ];
                 }
 
-                $processados = $this->movimentacaoModel->createBatch($tecnicoId, $tipo, $itensSanitizados);
+                $processados = $this->movimentacaoModel->createBatch($tecnicoIdFinal, $tipo, $itensSanitizados, $dataMovimentacaoFinal);
 
                 setFlash('success', 'Lote registrado com sucesso: ' . $processados . ' item(ns).');
             } catch (Throwable $e) {
                 setFlash('danger', 'Falha ao registrar lote: ' . $e->getMessage());
             }
 
-            redirect('movimentacoes');
+            $this->redirectRouteWithDate($returnRoute, $selectedDate);
         }
 
         // Fallback: se uso/devolucao vier sem equipamento e houver somente 1 item em mao, seleciona automaticamente.
         if ($tecnicoId > 0 && $equipamentoId <= 0 && in_array($tipo, ['uso', 'uso_teste', 'devolucao'], true)) {
-            $cards = $this->movimentacaoModel->reportCardsTecnicos();
+            $cards = $cardsTecnicosCache ?? $this->movimentacaoModel->reportCardsTecnicos();
+            $cardsTecnicosCache = $cards;
             foreach ($cards as $card) {
                 if ((int) ($card['tecnico_id'] ?? 0) !== $tecnicoId) {
                     continue;
@@ -147,31 +276,308 @@ class MovimentacaoController
             }
         }
 
-        if ($tecnicoId <= 0 || $equipamentoId <= 0 || $quantidade <= 0 || !in_array($tipo, $tiposValidos, true)) {
+        if ($tecnicoId > 0 && $equipamentoId <= 0 && in_array($tipo, ['uso', 'uso_teste', 'devolucao'], true)) {
+            $cards = $cardsTecnicosCache ?? $this->movimentacaoModel->reportCardsTecnicos();
+            $cardsTecnicosCache = $cards;
+            $itensEmMao = [];
+            $tecnicoNome = 'Tecnico selecionado';
+
+            foreach ($cards as $card) {
+                if ((int) ($card['tecnico_id'] ?? 0) !== $tecnicoId) {
+                    continue;
+                }
+
+                $itensEmMao = is_array($card['equipamentos_mao'] ?? null) ? $card['equipamentos_mao'] : [];
+                $tecnicoNome = trim((string) ($card['tecnico_nome'] ?? '')) !== ''
+                    ? (string) $card['tecnico_nome']
+                    : $tecnicoNome;
+                break;
+            }
+
+            if (count($itensEmMao) === 0) {
+                setFlash('danger', 'Nao foi possivel registrar esta movimentacao. ' . $tecnicoNome . ' nao possui equipamentos em mao para este tipo de operacao. Faca uma entrega antes de registrar o uso.');
+                $this->redirectRouteWithDate($returnRoute, $selectedDate);
+            }
+
+            $itensDisponiveis = [];
+            foreach ($itensEmMao as $item) {
+                $nome = trim((string) ($item['nome'] ?? ''));
+                $saldo = (int) ($item['saldo_mao'] ?? 0);
+                if ($nome !== '' && $saldo > 0) {
+                    $itensDisponiveis[] = $nome . ' (qtd: ' . $saldo . ')';
+                }
+
+                if (count($itensDisponiveis) >= 4) {
+                    break;
+                }
+            }
+
+            $detalhesDisponiveis = '';
+            if (!empty($itensDisponiveis)) {
+                $detalhesDisponiveis = ' Itens em mao deste tecnico: ' . implode(', ', $itensDisponiveis) . '.';
+            }
+
+            setFlash('danger', 'Selecione um equipamento em mao de ' . $tecnicoNome . ' para registrar esta movimentacao.' . $detalhesDisponiveis . ' Se voce precisa usar conector, faca a entrega do conector para este tecnico primeiro.');
+            $this->redirectRouteWithDate($returnRoute, $selectedDate);
+        }
+
+        if (($tecnicoObrigatorio && $tecnicoIdFinal === null) || $equipamentoId <= 0 || $quantidade <= 0 || !in_array($tipo, $tiposValidos, true)) {
             setFlash('danger', 'Dados invalidos para registrar movimentacao. Verifique tecnico, equipamento, tipo e quantidade.');
-            redirect('movimentacoes');
+            $this->redirectRouteWithDate($returnRoute, $selectedDate);
         }
 
         if (($tipo === 'uso' || $tipo === 'uso_teste') && $localUso === '') {
             setFlash('danger', 'Informe onde o equipamento foi usado.');
-            redirect('movimentacoes');
+            $this->redirectRouteWithDate($returnRoute, $selectedDate);
         }
 
         try {
             $this->movimentacaoModel->create(
-                $tecnicoId,
+                $tecnicoIdFinal,
                 $equipamentoId,
                 $quantidade,
                 $tipo,
                 $localUso !== '' ? $localUso : null,
-                $observacoes !== '' ? $observacoes : null
+                $observacoes !== '' ? $observacoes : null,
+                $dataMovimentacaoFinal
             );
             setFlash('success', 'Movimentacao registrada com sucesso.');
         } catch (Throwable $e) {
             setFlash('danger', 'Falha ao registrar movimentacao: ' . $e->getMessage());
         }
 
+        $this->redirectRouteWithDate($returnRoute, $selectedDate);
+    }
+
+    public function adjustHandBalance(array $data): void
+    {
+        $tecnicoId = (int) ($data['tecnico_id'] ?? 0);
+        $equipamentoId = (int) ($data['equipamento_id'] ?? 0);
+        $novoSaldo = (int) ($data['novo_saldo_mao'] ?? -1);
+        $observacoes = sanitizeInput((string) ($data['observacoes'] ?? ''));
+        $selectedDate = $this->normalizeDate((string) ($data['selected_date'] ?? ''));
+
+        if ($tecnicoId <= 0 || $equipamentoId <= 0 || $novoSaldo < 0) {
+            setFlash('danger', 'Dados invalidos para ajustar o saldo em mao.');
+            $this->redirectDashboard($selectedDate);
+        }
+
+        try {
+            $resultado = $this->movimentacaoModel->adjustHandBalance(
+                $tecnicoId,
+                $equipamentoId,
+                $novoSaldo,
+                $observacoes !== '' ? $observacoes : null
+            );
+
+            if (($resultado['alterado'] ?? false) === false) {
+                setFlash('info', 'Nenhum ajuste necessario. O saldo em mao ja estava correto.');
+                $this->redirectDashboard($selectedDate);
+            }
+
+            $tipo = (string) ($resultado['tipo_movimentacao'] ?? 'ajuste');
+            $quantidade = (int) ($resultado['quantidade_ajustada'] ?? 0);
+            setFlash('success', 'Saldo em mao ajustado com sucesso. Movimentacao registrada: ' . $tipo . ' de ' . $quantidade . ' unidade(s).');
+        } catch (Throwable $e) {
+            setFlash('danger', 'Falha ao ajustar saldo em mao: ' . $e->getMessage());
+        }
+
+        $this->redirectDashboard($selectedDate);
+    }
+
+    public function destroyUsage(array $data): void
+    {
+        $movimentacaoId = (int) ($data['movimentacao_id'] ?? 0);
+        $tipo = sanitizeInput((string) ($data['tipo'] ?? ''));
+        $returnRoute = sanitizeInput((string) ($data['return_route'] ?? 'movimentacoes'));
+        $tecnicoId = (int) ($data['tecnico_id'] ?? 0);
+        $selectedDate = $this->normalizeDate((string) ($data['selected_date'] ?? ''));
+
+        if (!in_array($returnRoute, ['movimentacoes', 'tecnico_historico'], true)) {
+            $returnRoute = 'movimentacoes';
+        }
+
+        if ($movimentacaoId <= 0 || !in_array($tipo, ['uso', 'uso_teste'], true)) {
+            setFlash('danger', 'Dados invalidos para excluir o uso do tecnico.');
+            $this->redirectAfterUsageDelete($returnRoute, $tecnicoId, $selectedDate);
+        }
+
+        try {
+            $this->movimentacaoModel->deleteUsageMovement($movimentacaoId, $tipo);
+            setFlash('success', 'Registro de uso excluido com sucesso.');
+        } catch (Throwable $e) {
+            setFlash('danger', 'Falha ao excluir registro de uso: ' . $e->getMessage());
+        }
+
+        $this->redirectAfterUsageDelete($returnRoute, $tecnicoId, $selectedDate);
+    }
+
+    public function destroyDelivery(array $data): void
+    {
+        $movimentacaoId = (int) ($data['movimentacao_id'] ?? 0);
+        $tipo = sanitizeInput((string) ($data['tipo'] ?? ''));
+        $returnRoute = sanitizeInput((string) ($data['return_route'] ?? 'movimentacoes'));
+        $tecnicoId = (int) ($data['tecnico_id'] ?? 0);
+        $selectedDate = $this->normalizeDate((string) ($data['selected_date'] ?? ''));
+
+        if (!in_array($returnRoute, ['movimentacoes', 'tecnico_historico'], true)) {
+            $returnRoute = 'movimentacoes';
+        }
+
+        if ($movimentacaoId <= 0 || !in_array($tipo, ['entrega', 'saida'], true)) {
+            setFlash('danger', 'Dados invalidos para excluir a entrega do tecnico.');
+            $this->redirectAfterUsageDelete($returnRoute, $tecnicoId, $selectedDate);
+        }
+
+        try {
+            $this->movimentacaoModel->deleteDeliveryMovement($movimentacaoId, $tipo);
+            setFlash('success', 'Registro de entrega excluido com sucesso. Estoque recomposto automaticamente.');
+        } catch (Throwable $e) {
+            setFlash('danger', 'Falha ao excluir registro de entrega: ' . $e->getMessage());
+        }
+
+        $this->redirectAfterUsageDelete($returnRoute, $tecnicoId, $selectedDate);
+    }
+
+    public function updateUsage(array $data): void
+    {
+        $movimentacaoId = (int) ($data['movimentacao_id'] ?? 0);
+        $tipo = sanitizeInput((string) ($data['tipo'] ?? ''));
+        $novaQuantidade = (int) ($data['quantidade'] ?? 0);
+        $localUso = sanitizeInput((string) ($data['local_uso'] ?? ''));
+        $observacoes = sanitizeInput((string) ($data['observacoes'] ?? ''));
+        $selectedDate = $this->normalizeDate((string) ($data['selected_date'] ?? ''));
+
+        if ($movimentacaoId <= 0) {
+            setFlash('danger', 'ID de movimentacao invalido.');
+            $this->redirectMovimentacoes($selectedDate);
+            return;
+        }
+
+        if (!in_array($tipo, ['uso', 'uso_teste'], true)) {
+            setFlash('danger', 'Tipo de movimentacao invalido.');
+            $this->redirectMovimentacoes($selectedDate);
+            return;
+        }
+
+        if ($novaQuantidade <= 0) {
+            setFlash('danger', 'Informe uma quantidade valida (maior que zero).');
+            $this->redirectMovimentacoes($selectedDate);
+            return;
+        }
+
+        if ($localUso === '' || trim($localUso) === '') {
+            setFlash('danger', 'Informe o local de uso.');
+            $this->redirectMovimentacoes($selectedDate);
+            return;
+        }
+
+        try {
+            $this->movimentacaoModel->updateUsageMovement(
+                $movimentacaoId,
+                $tipo,
+                $novaQuantidade,
+                $localUso,
+                $observacoes !== '' ? $observacoes : null
+            );
+            setFlash('success', 'Registro de uso atualizado com sucesso.');
+        } catch (Throwable $e) {
+            setFlash('danger', 'Falha ao atualizar registro de uso: ' . $e->getMessage());
+        }
+
+        $this->redirectMovimentacoes($selectedDate);
+    }
+
+    public function convertTestToUsage(array $data): void
+    {
+        $movimentacaoId = (int) ($data['movimentacao_id'] ?? 0);
+        $localUso = sanitizeInput((string) ($data['local_uso'] ?? ''));
+        $observacoes = sanitizeInput((string) ($data['observacoes'] ?? ''));
+        $selectedDate = $this->normalizeDate((string) ($data['selected_date'] ?? ''));
+
+        if ($movimentacaoId <= 0) {
+            setFlash('danger', 'Registro de teste invalido para definir uso.');
+            $this->redirectTestes($selectedDate);
+        }
+
+        try {
+            $this->movimentacaoModel->convertTestToUsage(
+                $movimentacaoId,
+                $localUso !== '' ? $localUso : null,
+                $observacoes !== '' ? $observacoes : null
+            );
+            setFlash('success', 'Uso em teste definido como uso no cliente com sucesso.');
+        } catch (Throwable $e) {
+            setFlash('danger', 'Falha ao definir uso no cliente: ' . $e->getMessage());
+        }
+
+        $this->redirectTestes($selectedDate);
+    }
+
+    public function addTestAttempt(array $data): void
+    {
+        $movimentacaoId = (int) ($data['movimentacao_id'] ?? 0);
+        $categoria = sanitizeInput((string) ($data['tipo_tentativa'] ?? 'geral'));
+        $descricao = sanitizeInput((string) ($data['nova_tentativa'] ?? ''));
+        $selectedDate = $this->normalizeDate((string) ($data['selected_date'] ?? ''));
+
+        if ($movimentacaoId <= 0) {
+            setFlash('danger', 'Registro de teste invalido para adicionar tentativa.');
+            $this->redirectTestes($selectedDate);
+        }
+
+        try {
+            $this->movimentacaoModel->appendTestAttemptHistory($movimentacaoId, $categoria, $descricao);
+            setFlash('success', 'Tentativa registrada com sucesso no historico do teste.');
+        } catch (Throwable $e) {
+            setFlash('danger', 'Falha ao registrar tentativa: ' . $e->getMessage());
+        }
+
+        $this->redirectTestes($selectedDate);
+    }
+
+    private function redirectTestes(?string $selectedDate): void
+    {
+        if ($selectedDate !== null) {
+            header('Location: index.php?route=testes&date=' . urlencode($selectedDate));
+            exit;
+        }
+
+        redirect('testes');
+    }
+
+    private function redirectAfterUsageDelete(string $returnRoute, int $tecnicoId, ?string $selectedDate = null): void
+    {
+        if ($returnRoute === 'tecnico_historico' && $tecnicoId > 0) {
+            if ($selectedDate !== null) {
+                header('Location: index.php?route=tecnico_historico&tecnico_id=' . $tecnicoId . '&date=' . urlencode($selectedDate));
+                exit;
+            }
+
+            header('Location: index.php?route=tecnico_historico&tecnico_id=' . $tecnicoId);
+            exit;
+        }
+
+        $this->redirectMovimentacoes($selectedDate);
+    }
+
+    private function redirectMovimentacoes(?string $selectedDate): void
+    {
+        if ($selectedDate !== null) {
+            header('Location: index.php?route=movimentacoes&date=' . urlencode($selectedDate));
+            exit;
+        }
+
         redirect('movimentacoes');
+    }
+
+    private function redirectRouteWithDate(string $route, ?string $selectedDate): void
+    {
+        if ($route === 'dashboard') {
+            $this->redirectDashboard($selectedDate);
+        }
+
+        $this->redirectMovimentacoes($selectedDate);
     }
 
     public function reports(): array
@@ -188,9 +594,44 @@ class MovimentacaoController
         ];
     }
 
+    public function purchaseSupport(): array
+    {
+        return $this->movimentacaoModel->getPurchaseSupportData();
+    }
+
+    public function savePurchaseSupport(array $data): void
+    {
+        $config = [
+            'prazo_reposicao_dias' => max(1, (int) ($data['prazo_reposicao_dias'] ?? 1)),
+        ];
+
+        $consumoItem = [];
+        $consumoItemRaw = $data['consumo_item'] ?? [];
+        if (is_array($consumoItemRaw)) {
+            foreach ($consumoItemRaw as $equipamentoIdRaw => $consumoRaw) {
+                $equipamentoId = (int) $equipamentoIdRaw;
+                if ($equipamentoId <= 0) {
+                    continue;
+                }
+
+                $consumoItem[$equipamentoId] = max(0, (int) $consumoRaw);
+            }
+        }
+
+        try {
+            $this->movimentacaoModel->savePurchaseSupportConfig($config, $consumoItem);
+            setFlash('success', 'Configuracoes de apoio a compra salvas com sucesso.');
+        } catch (Throwable $e) {
+            setFlash('danger', 'Falha ao salvar configuracoes de apoio a compra: ' . $e->getMessage());
+        }
+
+        redirect('apoio_compra');
+    }
+
     public function testes(): array
     {
-        $itens = $this->movimentacaoModel->reportAlertasUsoTeste();
+        $selectedDate = $this->normalizeDate((string) ($_GET['date'] ?? '')) ?? date('Y-m-d');
+        $itens = $this->movimentacaoModel->reportAlertasUsoTeste($selectedDate);
 
         $resumo = [
             'total' => count($itens),
@@ -242,6 +683,7 @@ class MovimentacaoController
             'resumo' => $resumo,
             'porTecnico' => $porTecnico,
             'automation' => $alertasAutomacao,
+            'selectedDate' => $selectedDate,
         ];
     }
 
@@ -426,5 +868,159 @@ class MovimentacaoController
         }
 
         return $date;
+    }
+
+    private function normalizeDateTime(?string $dateTime): ?string
+    {
+        if ($dateTime === null) {
+            return null;
+        }
+
+        $dateTime = trim($dateTime);
+        if ($dateTime === '') {
+            return null;
+        }
+
+        if (preg_match('/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?$/', $dateTime, $matches) !== 1) {
+            return null;
+        }
+
+        $datePart = $matches[1];
+        $hour = (int) $matches[2];
+        $minute = (int) $matches[3];
+        $second = isset($matches[4]) && $matches[4] !== '' ? (int) $matches[4] : 0;
+
+        $normalizedDate = $this->normalizeDate($datePart);
+        if ($normalizedDate === null) {
+            return null;
+        }
+
+        if ($hour < 0 || $hour > 23 || $minute < 0 || $minute > 59 || $second < 0 || $second > 59) {
+            return null;
+        }
+
+        return sprintf('%s %02d:%02d:%02d', $normalizedDate, $hour, $minute, $second);
+    }
+
+    public function importUsoTesteSpreadsheet(array $data): void
+    {
+        $rowsJson = (string) ($data['linhas_importacao_json'] ?? '');
+        $selectedDate = $this->normalizeDate((string) ($data['selected_date'] ?? '')) ?? date('Y-m-d');
+
+        if (trim($rowsJson) === '') {
+            setFlash('danger', 'Nenhuma linha encontrada para importar. Confira a planilha e tente novamente.');
+            $this->redirectMovimentacoes($selectedDate);
+        }
+
+        $rows = json_decode($rowsJson, true);
+        if (!is_array($rows) || empty($rows)) {
+            setFlash('danger', 'Falha ao ler os dados da planilha.');
+            $this->redirectMovimentacoes($selectedDate);
+        }
+
+        if (count($rows) > 5000) {
+            setFlash('danger', 'A planilha excede 5.000 linhas. Divida o arquivo e tente novamente.');
+            $this->redirectMovimentacoes($selectedDate);
+        }
+
+        $tecnicos = $this->tecnicoModel->all();
+        $equipamentos = $this->equipamentoModel->all();
+
+        $tecnicoMap = [];
+        $equipamentoMapById = [];
+        $equipamentoMapByBarcode = [];
+
+        foreach ($tecnicos as $tec) {
+            $tecnicoMap[(int) $tec['id']] = true;
+        }
+
+        foreach ($equipamentos as $eq) {
+            $equipamentoMapById[(int) $eq['id']] = true;
+            if (!empty($eq['codigo_barras'])) {
+                $equipamentoMapByBarcode[trim((string) $eq['codigo_barras'])] = (int) $eq['id'];
+            }
+        }
+
+        $importados = 0;
+        $erros = [];
+
+        try {
+            foreach ($rows as $index => $row) {
+                $tecnicoId = (int) ($row['tecnico_id'] ?? 0);
+                $codigoBarras = trim((string) ($row['codigo_barras'] ?? ''));
+                $quantidade = max(1, (int) ($row['quantidade'] ?? 1));
+                $local = trim((string) ($row['local'] ?? 'Importado'));
+                $observacoes = trim((string) ($row['observacoes'] ?? ''));
+
+                if ($tecnicoId <= 0) {
+                    $erros[] = 'Linha ' . ($index + 1) . ': tecnico_id deve ser um número válido.';
+                    continue;
+                }
+
+                if (!isset($tecnicoMap[$tecnicoId])) {
+                    $erros[] = 'Linha ' . ($index + 1) . ': técnico com ID ' . $tecnicoId . ' não encontrado.';
+                    continue;
+                }
+
+                if (empty($codigoBarras)) {
+                    $erros[] = 'Linha ' . ($index + 1) . ': código de barras não pode estar vazio.';
+                    continue;
+                }
+
+                if (!isset($equipamentoMapByBarcode[$codigoBarras])) {
+                    $erros[] = 'Linha ' . ($index + 1) . ': equipamento com código de barras "' . $codigoBarras . '" não encontrado.';
+                    continue;
+                }
+
+                $equipamentoId = $equipamentoMapByBarcode[$codigoBarras];
+
+                if ($local === '') {
+                    $local = 'Importado';
+                }
+
+                try {
+                    $this->movimentacaoModel->create(
+                        $tecnicoId,
+                        $equipamentoId,
+                        $quantidade,
+                        'uso_teste',
+                        $local,
+                        $observacoes !== '' ? $observacoes : null,
+                        null
+                    );
+                    $importados++;
+                } catch (Throwable $e) {
+                    $erros[] = 'Linha ' . ($index + 1) . ': ' . $e->getMessage();
+                }
+            }
+
+            if ($importados > 0) {
+                $msg = 'Importação concluída com sucesso. ' . $importados . ' equipamento(s) em teste registrado(s).';
+                if (!empty($erros)) {
+                    $msg .= ' (' . count($erros) . ' linha(s) com erro)';
+                }
+                setFlash('success', $msg);
+            } else {
+                setFlash('danger', 'Nenhum equipamento foi importado. Confira os dados e tente novamente.');
+            }
+
+            if (!empty($erros)) {
+                setFlash('warning', 'Erros encontrados: ' . implode(' | ', array_slice($erros, 0, 5)) . (count($erros) > 5 ? ' (... e mais ' . (count($erros) - 5) . ')' : ''));
+            }
+        } catch (Throwable $e) {
+            setFlash('danger', 'Falha ao importar planilha: ' . $e->getMessage());
+        }
+
+        $this->redirectMovimentacoes($selectedDate);
+    }
+
+    private function redirectDashboard(?string $selectedDate): void
+    {
+        if ($selectedDate !== null) {
+            header('Location: index.php?route=dashboard&date=' . urlencode($selectedDate));
+            exit;
+        }
+
+        redirect('dashboard');
     }
 }

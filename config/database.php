@@ -1,11 +1,20 @@
 <?php
 class Database
 {
-    private string $host = 'localhost';
-    private string $dbName = 'controle_estoque_fibra';
-    private string $username = 'root';
-    private string $password = '';
-    private string $charset = 'utf8mb4';
+    private string $host;
+    private string $dbName;
+    private string $username;
+    private string $password;
+    private string $charset;
+
+    public function __construct()
+    {
+        $this->host = getenv('DB_HOST') ?: 'localhost';
+        $this->dbName = getenv('DB_NAME') ?: 'controle_estoque_fibra';
+        $this->username = getenv('DB_USER') ?: getenv('DB_USERNAME') ?: 'root';
+        $this->password = getenv('DB_PASS') ?: getenv('DB_PASSWORD') ?: '';
+        $this->charset = getenv('DB_CHARSET') ?: 'utf8mb4';
+    }
 
     public function getConnection(): PDO
     {

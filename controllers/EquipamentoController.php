@@ -18,10 +18,10 @@ class EquipamentoController
 
     public function store(array $data): void
     {
-        $nome = sanitize($data['nome'] ?? '');
-        $tipo = sanitize($data['tipo'] ?? '');
+        $nome = sanitizeInput($data['nome'] ?? '');
+        $tipo = sanitizeInput($data['tipo'] ?? '');
         $quantidade = (int) ($data['quantidade'] ?? 0);
-        $codigoBarras = sanitize((string) ($data['codigo_barras'] ?? ''));
+        $codigoBarras = sanitizeInput((string) ($data['codigo_barras'] ?? ''));
         $codigoBarras = trim($codigoBarras) !== '' ? trim($codigoBarras) : null;
 
         if ($nome === '' || $tipo === '' || $quantidade < 0) {
@@ -46,10 +46,10 @@ class EquipamentoController
     public function update(array $data): void
     {
         $id = (int) ($data['id'] ?? 0);
-        $nome = sanitize($data['nome'] ?? '');
-        $tipo = sanitize($data['tipo'] ?? '');
+        $nome = sanitizeInput($data['nome'] ?? '');
+        $tipo = sanitizeInput($data['tipo'] ?? '');
         $quantidade = (int) ($data['quantidade'] ?? 0);
-        $codigoBarras = sanitize((string) ($data['codigo_barras'] ?? ''));
+        $codigoBarras = sanitizeInput((string) ($data['codigo_barras'] ?? ''));
         $codigoBarras = trim($codigoBarras) !== '' ? trim($codigoBarras) : null;
 
         if ($id <= 0 || $nome === '' || $tipo === '' || $quantidade < 0) {
@@ -77,6 +77,20 @@ class EquipamentoController
 
         if ($id <= 0) {
             setFlash('danger', 'Equipamento invalido para exclusao.');
+            redirect('equipamentos');
+        }
+
+        $saldosEmMao = $this->model->handBalanceByTechnician($id);
+        if (!empty($saldosEmMao)) {
+            $nomes = [];
+            foreach (array_slice($saldosEmMao, 0, 4) as $saldo) {
+                $nome = trim((string) ($saldo['tecnico_nome'] ?? 'Tecnico'));
+                $qtd = (int) ($saldo['saldo_mao'] ?? 0);
+                $nomes[] = $nome . ' (' . $qtd . ')';
+            }
+
+            $detalhes = implode(', ', $nomes);
+            setFlash('danger', 'Nao e possivel excluir este equipamento porque ele ainda esta em mao de tecnicos: ' . $detalhes . '. Registre devolucao/uso antes da exclusao para evitar inconsistencias.');
             redirect('equipamentos');
         }
 
