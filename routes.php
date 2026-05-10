@@ -78,6 +78,12 @@ function resolveRoute(string $route): array
                 'data' => $movimentacaoController->reports(),
             ];
 
+        case 'equipamentos_defeito':
+            return [
+                'view' => 'views/equipamentos-defeito.php',
+                'data' => $movimentacaoController->defectiveEquipments(),
+            ];
+
         case 'apoio_compra':
             return [
                 'view' => 'views/apoio-compra.php',

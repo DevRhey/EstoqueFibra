@@ -52,6 +52,16 @@ foreach ($cardsTecnicos as $cardResumo) {
     <p class="page-subtitle">Analise consumo, uso dos equipamentos e sugestoes de reposicao.</p>
 </section>
 
+<div class="card card-soft reveal mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-2 section-shortcuts">
+            <a class="btn btn-sm btn-outline-secondary" href="#relatorios-cards">Cards por tecnico</a>
+            <a class="btn btn-sm btn-outline-secondary" href="#relatorios-consumo">Consumo</a>
+            <a class="btn btn-sm btn-outline-secondary" href="#relatorios-equipamentos">Equipamentos usados</a>
+        </div>
+    </div>
+</div>
+
 <div class="row g-3 mb-4 reveal">
     <div class="col-6 col-lg-3">
         <article class="card card-soft report-kpi-card h-100">
@@ -88,6 +98,11 @@ foreach ($cardsTecnicos as $cardResumo) {
 </div>
 
 <div class="card card-soft reveal mb-4 report-toolbar-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Filtros dos Cards</h5>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#relatorios-toolbar-body" aria-expanded="true" aria-controls="relatorios-toolbar-body" data-label-expand="Mostrar filtros" data-label-collapse="Ocultar filtros">Ocultar filtros</button>
+    </div>
+    <div id="relatorios-toolbar-body" class="collapse show">
     <div class="card-body">
         <div class="row g-3 align-items-end">
             <div class="col-12 col-lg-4">
@@ -120,16 +135,20 @@ foreach ($cardsTecnicos as $cardResumo) {
             </div>
         </div>
     </div>
+    </div>
 </div>
 
-<div class="row g-4 mb-4">
+<div class="row g-4 mb-4" id="relatorios-cards">
     <div class="col-12 reveal">
         <?php require __DIR__ . '/partials/tech-risk-legend.php'; ?>
     </div>
     <?php if (empty($cardsTecnicos)): ?>
         <div class="col-12 reveal">
             <div class="card card-soft">
-                <div class="card-body text-center py-4">Nenhum tecnico cadastrado para gerar cards.</div>
+                <div class="card-body text-center py-4">
+                    <h6 class="mb-1">Nenhum tecnico para exibir.</h6>
+                    <small class="text-muted">Cadastre tecnicos e movimentacoes para visualizar risco e reposicao.</small>
+                </div>
             </div>
         </div>
     <?php else: ?>
@@ -261,7 +280,7 @@ foreach ($cardsTecnicos as $cardResumo) {
     Nenhum tecnico encontrado para os filtros selecionados.
 </div>
 
-<div class="row g-4">
+<div class="row g-4" id="relatorios-consumo">
     <div class="col-xl-6 reveal">
         <div class="card card-soft h-100">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -292,7 +311,7 @@ foreach ($cardsTecnicos as $cardResumo) {
         </div>
     </div>
 
-    <div class="col-xl-6 reveal">
+    <div class="col-xl-6 reveal" id="relatorios-equipamentos">
         <div class="card card-soft h-100">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Equipamentos Mais Utilizados</h5>

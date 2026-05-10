@@ -104,10 +104,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== null) {
             $inadimplenciaController->destroy($_POST);
             break;
 
-        case 'movimentacao_importar_uso_teste':
-            $movimentacaoController->importUsoTesteSpreadsheet($_POST);
-            break;
-
         default:
             setFlash('danger', 'Acao invalida.');
             redirect($route);

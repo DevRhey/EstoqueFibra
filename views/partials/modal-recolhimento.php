@@ -32,14 +32,14 @@ $include_batch = !empty($include_batch);
                         <input type="date" name="data_movimentacao" class="form-control" value="<?php echo sanitize($selectedDate); ?>" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Equipamento (em Mão)</label>
+                        <label class="form-label fw-bold">Equipamento recolhido do cliente</label>
                         <select name="equipamento_id" class="form-select js-recolhimento-equipamento" required>
-                            <option value="">Primeiro escolha um técnico</option>
+                            <option value="">Selecione um equipamento</option>
                         </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Observações</label>
-                        <textarea name="observacoes" class="form-control" rows="2" maxlength="500" placeholder="Motivo do recolhimento, condição do equipamento"></textarea>
+                        <textarea name="observacoes" class="form-control" rows="2" maxlength="500" placeholder="Cliente, endereco, condicao do item recolhido"></textarea>
                     </div>
 
                     <?php if ($include_batch): ?>
@@ -72,7 +72,7 @@ $include_batch = !empty($include_batch);
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-info text-white">Confirmar Recolhimento</button>
+                    <button type="submit" class="btn btn-info text-white">Enviar para Mão do Técnico</button>
                 </div>
             </form>
         </div>

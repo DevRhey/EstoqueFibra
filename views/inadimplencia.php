@@ -22,6 +22,16 @@ $routePlanning = $data['routePlanning'] ?? [
     <p class="page-subtitle">Importe a planilha de inadimplencia e gerencie os recolhimentos pendentes por status, prazo e historico da tentativa.</p>
 </section>
 
+<div class="card card-soft reveal mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-2 section-shortcuts">
+            <a class="btn btn-sm btn-outline-secondary" href="#inad-importacao">Importacao</a>
+            <a class="btn btn-sm btn-outline-secondary" href="#inad-filtros">Filtros e rota</a>
+            <a class="btn btn-sm btn-outline-secondary" href="#inad-lista">Lista de registros</a>
+        </div>
+    </div>
+</div>
+
 <div class="row g-3 mb-4 reveal">
     <div class="col-6 col-lg-2">
         <div class="card card-soft h-100">
@@ -73,12 +83,14 @@ $routePlanning = $data['routePlanning'] ?? [
     </div>
 </div>
 
-<div class="card card-soft mb-4 reveal">
+<div class="card card-soft mb-4 reveal" id="inad-importacao">
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h5 class="mb-0">Importar Planilha</h5>
-        <span class="badge text-bg-primary">Padrao: Titular, Equipamento, Contato, Endereco, Prazo, Status, Tentativas</span>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#inad-import-body" aria-expanded="false" aria-controls="inad-import-body" data-label-expand="Mostrar" data-label-collapse="Ocultar">Mostrar</button>
     </div>
+    <div id="inad-import-body" class="collapse">
     <div class="card-body">
+        <div class="mb-3 small text-muted">Padrao: Titular, Equipamento, Contato, Endereco, Prazo, Status, Tentativas</div>
         <form method="post" enctype="multipart/form-data" class="needs-validation js-inadimplencia-import-form" novalidate>
             <input type="hidden" name="action" value="inadimplencia_importar_planilha">
             <input type="hidden" name="linhas_importacao_json" class="js-inadimplencia-import-json">
@@ -136,9 +148,15 @@ $routePlanning = $data['routePlanning'] ?? [
             </div>
         </form>
     </div>
+    </div>
 </div>
 
-<div class="card card-soft reveal mb-4">
+<div class="card card-soft reveal mb-4" id="inad-filtros">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Filtros e Planejamento de Rota</h5>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#inad-filter-body" aria-expanded="true" aria-controls="inad-filter-body" data-label-expand="Mostrar" data-label-collapse="Ocultar">Ocultar</button>
+    </div>
+    <div id="inad-filter-body" class="collapse show">
     <div class="card-body border-bottom">
         <form method="get" class="row g-3 align-items-end">
             <input type="hidden" name="route" value="inadimplencia">
@@ -288,8 +306,21 @@ $routePlanning = $data['routePlanning'] ?? [
             <?php endif; ?>
         </div>
     </div>
+    </div>
 
-    <div class="card-body p-0">
+    <div class="card-body p-0" id="inad-lista">
+        <div class="p-3 border-bottom">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-lg-6">
+                    <label class="form-label small text-muted mb-1">Busca rapida na lista atual</label>
+                    <input type="text" class="form-control js-inad-table-search" placeholder="Filtrar por titular, contato, endereco ou status">
+                </div>
+                <div class="col-12 col-lg-6">
+                    <small class="text-muted">Registros visiveis: <strong class="js-inad-visible-count"><?php echo count($registros); ?></strong></small>
+                </div>
+            </div>
+            <div class="alert alert-dark border d-none mt-3 mb-0 js-inad-empty">Nenhum registro encontrado para a busca rapida.</div>
+        </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped mb-0 align-middle">
                 <thead>
@@ -325,7 +356,8 @@ $routePlanning = $data['routePlanning'] ?? [
                             $badgeClass = 'text-bg-danger';
                         }
                         ?>
-                        <tr>
+                        <tr class="js-inad-row"
+                            data-inad-text="<?php echo strtolower(sanitize((string) (($item['titular'] ?? '') . ' ' . ($item['contato'] ?? '') . ' ' . ($item['endereco'] ?? '') . ' ' . ($item['status'] ?? '')))); ?>">
                             <td><?php echo sanitize((string) ($item['titular'] ?? '')); ?></td>
                             <td><?php echo sanitize((string) ($item['equipamento'] ?? '')); ?></td>
                             <td><?php echo sanitize((string) ($item['contato'] ?? '')); ?></td>

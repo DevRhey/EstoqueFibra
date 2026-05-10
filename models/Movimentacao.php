@@ -579,7 +579,7 @@ class Movimentacao
             throw new RuntimeException('Saida maior que o estoque disponivel.');
         }
 
-        if ($tipo === 'uso' || $tipo === 'uso_teste' || $tipo === 'devolucao') {
+        if ($tipo === 'uso' || $tipo === 'uso_teste' || $tipo === 'devolucao' || $tipo === 'recolhimento_defeito') {
             $saldoNaMao = $this->getSaldoNaMao($tecnicoId, $equipamentoId);
 
             if ($saldoNaMao < $quantidade) {
@@ -587,9 +587,9 @@ class Movimentacao
             }
         }
 
-        if ($tipo === 'recolhimento' || $tipo === 'recolhimento_defeito') {
-            // Recolhimentos consomem saldo em campo. Apenas recolhimento normal retorna ao estoque.
-            // Recolhimento com defeito fica fora do estoque normal e segue para lista de defeitos.
+        if ($tipo === 'recolhimento') {
+            // Recolhimento representa retirada do cliente para a mao do tecnico.
+            // Nao deve retornar direto ao estoque geral, apenas baixar o saldo em campo.
             $saldoEmCampoGlobal = $this->getSaldoEmCampoGlobal($equipamentoId);
             if ($saldoEmCampoGlobal < $quantidade) {
                 $diferenca = $quantidade - $saldoEmCampoGlobal;
@@ -742,8 +742,8 @@ class Movimentacao
         $stmt = $this->conn->prepare(
             "SELECT COALESCE(SUM(CASE
                     WHEN tipo IN ('entrega', 'saida') THEN quantidade
-                    WHEN tipo IN ('uso', 'uso_teste', 'devolucao', 'entrada') THEN -quantidade
-                    WHEN tipo IN ('recolhimento', 'recolhimento_defeito') THEN 0
+                    WHEN tipo = 'recolhimento' THEN quantidade
+                    WHEN tipo IN ('uso', 'uso_teste', 'devolucao', 'entrada', 'recolhimento_defeito') THEN -quantidade
                     ELSE 0
                 END), 0) AS saldo_mao
              FROM movimentacoes
@@ -776,8 +776,8 @@ class Movimentacao
 
                     $snapshotSql = "SELECT COALESCE(SUM(CASE
                                             WHEN m.tipo IN ('entrega', 'saida') THEN m.quantidade
-                                            WHEN m.tipo IN ('uso', 'uso_teste', 'devolucao', 'entrada') THEN -m.quantidade
-                                            WHEN m.tipo IN ('recolhimento', 'recolhimento_defeito') THEN 0
+                                            WHEN m.tipo = 'recolhimento' THEN m.quantidade
+                                            WHEN m.tipo IN ('uso', 'uso_teste', 'devolucao', 'entrada', 'recolhimento_defeito') THEN -m.quantidade
                                             ELSE 0
                                         END), 0) AS saldo_mao
                                     FROM movimentacoes m
@@ -811,7 +811,7 @@ class Movimentacao
         $stmt = $this->conn->prepare(
             "SELECT COALESCE(SUM(CASE
                     WHEN tipo IN ('uso', 'uso_teste') THEN quantidade
-                    WHEN tipo IN ('recolhimento', 'recolhimento_defeito') THEN -quantidade
+                    WHEN tipo = 'recolhimento' THEN -quantidade
                     ELSE 0
                 END), 0) AS saldo_campo
              FROM movimentacoes
@@ -830,7 +830,7 @@ class Movimentacao
         $stmt = $this->conn->prepare(
             "SELECT COALESCE(SUM(CASE
                     WHEN tipo IN ('uso', 'uso_teste') THEN quantidade
-                    WHEN tipo IN ('recolhimento', 'recolhimento_defeito') THEN -quantidade
+                    WHEN tipo = 'recolhimento' THEN -quantidade
                     ELSE 0
                 END), 0) AS saldo_campo
              FROM movimentacoes
@@ -890,7 +890,7 @@ class Movimentacao
         }
 
         if ($tipo === 'recolhimento') {
-            return $quantidade;
+            return 0;
         }
 
         if ($tipo === 'recolhimento_defeito') {
@@ -942,40 +942,6 @@ class Movimentacao
         }
 
         return $history . PHP_EOL . PHP_EOL . $stamp;
-    }
-
-    private function extractDefectReason(string $observacoes): string
-    {
-        $observacoes = trim($observacoes);
-        if ($observacoes === '') {
-            return '-';
-        }
-
-        if (preg_match('/Defeito:\s*([^|]+)/i', $observacoes, $matches) === 1) {
-            $motivo = trim((string) ($matches[1] ?? ''));
-            if ($motivo !== '') {
-                return $motivo;
-            }
-        }
-
-        return $observacoes;
-    }
-
-    private function extractDefectSerial(string $observacoes): string
-    {
-        $observacoes = trim($observacoes);
-        if ($observacoes === '') {
-            return '-';
-        }
-
-        if (preg_match('/Serial:\s*([^|]+)/i', $observacoes, $matches) === 1) {
-            $serial = trim((string) ($matches[1] ?? ''));
-            if ($serial !== '') {
-                return $serial;
-            }
-        }
-
-        return '-';
     }
 
     public function reportRecolhimentosSemLastro(?string $selectedDate = null): array
@@ -1043,7 +1009,8 @@ class Movimentacao
                     COALESCE(e.tipo, MAX(m.equipamento_tipo_snapshot), 'indefinido') AS equipamento_tipo,
                     SUM(CASE
                         WHEN m.tipo IN ('entrega', 'saida') THEN m.quantidade
-                        WHEN m.tipo IN ('uso', 'uso_teste', 'devolucao', 'entrada') THEN -m.quantidade
+                        WHEN m.tipo = 'recolhimento' THEN m.quantidade
+                        WHEN m.tipo IN ('uso', 'uso_teste', 'devolucao', 'entrada', 'recolhimento_defeito') THEN -m.quantidade
                         ELSE 0
                     END) AS saldo_mao
                 FROM movimentacoes m
@@ -1072,7 +1039,7 @@ class Movimentacao
                     COALESCE(e.tipo, MAX(m.equipamento_tipo_snapshot), 'indefinido') AS equipamento_tipo,
                     SUM(CASE
                         WHEN m.tipo IN ('uso', 'uso_teste') THEN m.quantidade
-                        WHEN m.tipo IN ('recolhimento', 'recolhimento_defeito') THEN {$campoRecolhimentoExpr}
+                        WHEN m.tipo = 'recolhimento' THEN {$campoRecolhimentoExpr}
                         ELSE 0
                     END) AS saldo_campo_global
                 FROM movimentacoes m
@@ -1149,61 +1116,6 @@ class Movimentacao
 
         $stmt = $this->conn->query($sql);
         return $stmt->fetchAll();
-    }
-
-    public function reportAparelhosComDefeito(?string $selectedDate = null): array
-    {
-        $selectedDate = $this->normalizeDate($selectedDate);
-
-        $hasObservacoes = $this->hasColumn('observacoes');
-        $selectObservacoes = $hasObservacoes ? 'm.observacoes,' : "'' AS observacoes,";
-        $selectEquipamentoNome = $this->hasColumn('equipamento_nome_snapshot')
-            ? "COALESCE(e.nome, m.equipamento_nome_snapshot, 'Equipamento removido') AS equipamento_nome,"
-            : "COALESCE(e.nome, 'Equipamento removido') AS equipamento_nome,";
-        $selectEquipamentoTipo = $this->hasColumn('equipamento_tipo_snapshot')
-            ? "COALESCE(e.tipo, m.equipamento_tipo_snapshot, 'indefinido') AS equipamento_tipo"
-            : "COALESCE(e.tipo, 'indefinido') AS equipamento_tipo";
-
-        $where = "m.tipo = 'recolhimento_defeito'";
-        if ($hasObservacoes) {
-            // Compatibilidade com bases legadas: aceita qualquer registro com marcador explicito de defeito em observacoes.
-            $where = "({$where} OR LOWER(COALESCE(m.observacoes, '')) LIKE :legacy_defect_marker)";
-        }
-        $params = [];
-        if ($hasObservacoes) {
-            $params['legacy_defect_marker'] = '%defeito:%';
-        }
-
-        if ($selectedDate !== null) {
-            $where .= ' AND DATE(m.data_movimentacao) = :selected_date';
-            $params['selected_date'] = $selectedDate;
-        }
-
-        $sql = "SELECT m.id,
-                       m.tecnico_id,
-                       COALESCE(t.nome, 'Sem tecnico') AS tecnico_nome,
-                       m.quantidade,
-                       {$selectObservacoes}
-                       m.data_movimentacao,
-                       {$selectEquipamentoNome}
-                       {$selectEquipamentoTipo}
-                FROM movimentacoes m
-                LEFT JOIN tecnicos t ON t.id = m.tecnico_id
-                LEFT JOIN equipamentos e ON e.id = m.equipamento_id
-                WHERE {$where}
-                ORDER BY m.data_movimentacao DESC";
-
-        $stmt = $this->conn->prepare($sql);
-        $stmt->execute($params);
-        $rows = $stmt->fetchAll();
-
-        foreach ($rows as &$row) {
-            $row['motivo_defeito'] = $this->extractDefectReason((string) ($row['observacoes'] ?? ''));
-            $row['serial_equipamento'] = $this->extractDefectSerial((string) ($row['observacoes'] ?? ''));
-        }
-        unset($row);
-
-        return $rows;
     }
 
     public function reportUsoPorTecnicoPeriodo(?int $tecnicoId, string $dataInicio, string $dataFim, ?string $equipamentoTipo = null): array
@@ -1590,8 +1502,8 @@ class Movimentacao
                             {$selectCodigoBarrasSaldo}
                             SUM(CASE
                                     WHEN m.tipo IN ('entrega', 'saida') THEN m.quantidade
-                                    WHEN m.tipo IN ('uso', 'uso_teste', 'devolucao', 'entrada') THEN -m.quantidade
-                                    WHEN m.tipo IN ('recolhimento', 'recolhimento_defeito') THEN 0
+                                    WHEN m.tipo = 'recolhimento' THEN m.quantidade
+                                    WHEN m.tipo IN ('uso', 'uso_teste', 'devolucao', 'entrada', 'recolhimento_defeito') THEN -m.quantidade
                                     ELSE 0
                                 END) AS saldo_mao
                      FROM movimentacoes m
@@ -1676,7 +1588,7 @@ class Movimentacao
                             {$selectCodigoBarrasSaldo}
                             SUM(CASE
                                     WHEN m.tipo IN ('uso', 'uso_teste') THEN m.quantidade
-                                    WHEN m.tipo IN ('recolhimento', 'recolhimento_defeito') THEN -m.quantidade
+                                    WHEN m.tipo = 'recolhimento' THEN -m.quantidade
                                     ELSE 0
                                 END) AS saldo_campo
                      FROM movimentacoes m
@@ -2179,6 +2091,105 @@ class Movimentacao
         }
 
         return $map;
+    }
+
+    public function reportEquipamentosComDefeito(?string $selectedDate = null, ?int $tecnicoId = null, ?string $query = null): array
+    {
+        $selectedDate = $this->normalizeDate($selectedDate);
+        $tecnicoId = $tecnicoId !== null && $tecnicoId > 0 ? $tecnicoId : null;
+        $query = trim((string) ($query ?? ''));
+
+        $selectObservacoes = $this->hasColumn('observacoes') ? 'm.observacoes,' : "'' AS observacoes,";
+        $selectEquipamentoNome = $this->hasColumn('equipamento_nome_snapshot')
+            ? "COALESCE(e.nome, m.equipamento_nome_snapshot, 'Equipamento removido') AS equipamento_nome,"
+            : "COALESCE(e.nome, 'Equipamento removido') AS equipamento_nome,";
+        $selectEquipamentoTipo = $this->hasColumn('equipamento_tipo_snapshot')
+            ? "COALESCE(e.tipo, m.equipamento_tipo_snapshot, 'indefinido') AS equipamento_tipo,"
+            : "COALESCE(e.tipo, 'indefinido') AS equipamento_tipo,";
+        $selectCodigoBarras = $this->hasColumn('equipamento_codigo_barras_snapshot')
+            ? "COALESCE(e.codigo_barras, m.equipamento_codigo_barras_snapshot) AS equipamento_codigo_barras"
+            : ($this->hasEquipamentoColumn('codigo_barras') ? 'e.codigo_barras AS equipamento_codigo_barras' : 'NULL AS equipamento_codigo_barras');
+
+        $where = ["m.tipo = 'recolhimento_defeito'"];
+        $params = [];
+
+        if ($selectedDate !== null) {
+            $where[] = 'DATE(m.data_movimentacao) = :selected_date';
+            $params['selected_date'] = $selectedDate;
+        }
+
+        if ($tecnicoId !== null) {
+            $where[] = 'm.tecnico_id = :tecnico_id';
+            $params['tecnico_id'] = $tecnicoId;
+        }
+
+        if ($query !== '') {
+            $where[] = '(COALESCE(t.nome, "") LIKE :query OR COALESCE(e.nome, m.equipamento_nome_snapshot, "") LIKE :query OR COALESCE(m.observacoes, "") LIKE :query)';
+            $params['query'] = '%' . $query . '%';
+        }
+
+        $sql = "SELECT m.id,
+                       m.tecnico_id,
+                       COALESCE(t.nome, 'Sem tecnico') AS tecnico_nome,
+                       m.equipamento_id,
+                       {$selectEquipamentoNome}
+                       {$selectEquipamentoTipo}
+                       {$selectObservacoes}
+                       {$selectCodigoBarras},
+                       m.quantidade,
+                       m.data_movimentacao
+                FROM movimentacoes m
+                LEFT JOIN tecnicos t ON t.id = m.tecnico_id
+                LEFT JOIN equipamentos e ON e.id = m.equipamento_id
+                WHERE " . implode(' AND ', $where) . "
+                ORDER BY m.data_movimentacao DESC";
+
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+
+        foreach ($rows as &$row) {
+            $obs = (string) ($row['observacoes'] ?? '');
+            $row['motivo_defeito'] = $this->extractDefectReason($obs);
+            $row['serial_equipamento'] = $this->extractDefectSerial($obs);
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    private function extractDefectReason(string $observacoes): string
+    {
+        $observacoes = trim($observacoes);
+        if ($observacoes === '') {
+            return '-';
+        }
+
+        if (preg_match('/Defeito:\s*([^|]+)/i', $observacoes, $matches) === 1) {
+            $motivo = trim((string) ($matches[1] ?? ''));
+            if ($motivo !== '') {
+                return $motivo;
+            }
+        }
+
+        return $observacoes;
+    }
+
+    private function extractDefectSerial(string $observacoes): string
+    {
+        $observacoes = trim($observacoes);
+        if ($observacoes === '') {
+            return '-';
+        }
+
+        if (preg_match('/Serial:\s*([^|]+)/i', $observacoes, $matches) === 1) {
+            $serial = trim((string) ($matches[1] ?? ''));
+            if ($serial !== '') {
+                return $serial;
+            }
+        }
+
+        return '-';
     }
 
     private function ensurePurchaseSupportTable(): void

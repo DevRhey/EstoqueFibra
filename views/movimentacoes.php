@@ -4,7 +4,6 @@ $equipamentos = $data['equipamentos'] ?? [];
 $tecnicos = $data['tecnicos'] ?? [];
 $cardsTecnicos = $data['cardsTecnicos'] ?? [];
 $alertasUsoTeste = $data['alertasUsoTeste'] ?? [];
-$aparelhosComDefeito = $data['aparelhosComDefeito'] ?? [];
 $recolhimentosSemLastro = $data['recolhimentosSemLastro'] ?? [];
 $integrityIssues = $data['integrityIssues'] ?? [
     'estoque_negativo' => [],
@@ -13,7 +12,6 @@ $integrityIssues = $data['integrityIssues'] ?? [
     'total_issues' => 0,
 ];
 $selectedDate = $data['selectedDate'] ?? date('Y-m-d');
-$defectFilterDate = $data['defectFilterDate'] ?? $selectedDate;
 $usageFilters = $data['usageFilters'] ?? [
     'apply' => false,
     'tecnico_id' => 0,
@@ -28,6 +26,7 @@ $usageSummary = $data['usageSummary'] ?? [
     'total_registros' => 0,
     'dias_periodo' => 0,
 ];
+$usageFiltersOpen = !empty($usageFilters['apply']);
 
 $equipamentosEmMaoPorTecnico = [];
 $equipamentosEmCampoPorTecnico = [];
@@ -100,8 +99,17 @@ foreach ($movimentacoes as $mov) {
 
 <section class="mb-4 page-intro reveal">
     <h2 class="page-title">Movimentacoes</h2>
-    <p class="page-subtitle">Registre entregas, usos, uso em teste, devolucoes e recolhimentos com atualizacao automatica de estoque.</p>
+    <p class="page-subtitle">Registre entregas, usos, recolhimento para mao do tecnico, devolucao ao estoque e devolucoes com defeito.</p>
 </section>
+
+<div class="card card-soft reveal mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-2 section-shortcuts">
+            <a class="btn btn-sm btn-outline-secondary" href="#operacoes-rapidas">Operacoes rapidas</a>
+            <a class="btn btn-sm btn-outline-secondary" href="#historico-mov">Historico</a>
+        </div>
+    </div>
+</div>
 
 <div class="card card-soft reveal mb-4 sticky-date-filter">
     <div class="card-body">
@@ -125,8 +133,11 @@ foreach ($movimentacoes as $mov) {
 <div class="card card-soft reveal mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Consulta de Uso por Tecnico no Periodo</h5>
-        <span class="badge text-bg-primary">Filtro personalizado</span>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#usage-filter-body" aria-expanded="<?php echo $usageFiltersOpen ? 'true' : 'false'; ?>" aria-controls="usage-filter-body" data-label-expand="Mostrar filtros" data-label-collapse="Ocultar filtros">
+            <?php echo $usageFiltersOpen ? 'Ocultar filtros' : 'Mostrar filtros'; ?>
+        </button>
     </div>
+    <div id="usage-filter-body" class="collapse<?php echo $usageFiltersOpen ? ' show' : ''; ?>">
     <div class="card-body">
         <form method="get" class="row g-3 align-items-end">
             <input type="hidden" name="route" value="movimentacoes">
@@ -215,10 +226,11 @@ foreach ($movimentacoes as $mov) {
             <?php endif; ?>
         <?php endif; ?>
     </div>
+    </div>
 </div>
 
 <!-- Botões de Operações Principais -->
-<div class="row g-3 mb-4 reveal">
+<div class="row g-3 mb-4 reveal" id="operacoes-rapidas">
     <div class="col-12 col-sm-6 col-lg-4 col-xl-2">
         <button class="btn btn-success w-100 h-100 p-4" data-bs-toggle="modal" data-bs-target="#modal-entrega">
             <div class="mb-2" style="font-size: 24px;">📦</div>
@@ -244,21 +256,21 @@ foreach ($movimentacoes as $mov) {
         <button class="btn btn-info w-100 h-100 p-4" data-bs-toggle="modal" data-bs-target="#modal-recolhimento">
             <div class="mb-2" style="font-size: 24px;">🔄</div>
             <strong>Recolher</strong>
-            <small class="d-block mt-1">Entra direto no estoque geral</small>
+            <small class="d-block mt-1">Vai para a mao do tecnico</small>
         </button>
     </div>
     <div class="col-12 col-sm-6 col-lg-4 col-xl-2">
         <button class="btn btn-danger w-100 h-100 p-4" data-bs-toggle="modal" data-bs-target="#modal-recolhimento-defeito">
             <div class="mb-2" style="font-size: 24px;">⚠️</div>
-            <strong>Recolher c/ defeito</strong>
-            <small class="d-block mt-1">Lista especial de defeitos</small>
+            <strong>Devolver c/ defeito</strong>
+            <small class="d-block mt-1">Sai da mao e vai para lista</small>
         </button>
     </div>
     <div class="col-12 col-sm-6 col-lg-4 col-xl-2">
         <button class="btn btn-primary w-100 h-100 p-4" data-bs-toggle="modal" data-bs-target="#modal-devolucao">
             <div class="mb-2" style="font-size: 24px;">↩️</div>
             <strong>Devolver</strong>
-            <small class="d-block mt-1">Retorno ao estoque</small>
+            <small class="d-block mt-1">Sai da mao e volta ao estoque</small>
         </button>
     </div>
 </div>
@@ -304,55 +316,6 @@ foreach ($movimentacoes as $mov) {
 
 <!-- Modal: EDITAR USO -->
 <?php require __DIR__ . '/partials/modal-editar-uso.php'; ?>
-
-<!-- Seção: Importar Uso em Teste via Excel -->
-<div class="card card-soft mb-4 reveal" id="import-uso-teste">
-    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <h5 class="mb-0">Importar Equipamentos em Teste (Excel)</h5>
-        <span class="badge text-bg-dark">Padrão: TecnicoID, CodigoBarras, Quantidade, Local, Observações</span>
-    </div>
-    <div class="card-body">
-        <form method="post" enctype="multipart/form-data" class="needs-validation js-uso-teste-import-form" novalidate>
-            <input type="hidden" name="action" value="movimentacao_importar_uso_teste">
-            <input type="hidden" name="linhas_importacao_json" class="js-uso-teste-import-json">
-            <input type="hidden" name="selected_date" value="<?php echo sanitize($selectedDate); ?>">
-            <div class="row g-3 align-items-end">
-                <div class="col-12 col-lg-7">
-                    <label class="form-label fw-bold">Arquivo da planilha (Excel)</label>
-                    <input type="file" name="planilha_uso_teste" class="form-control js-uso-teste-file" accept=".xlsx,.xls,.csv" required>
-                    <div class="form-text">A leitura é feita no navegador. Depois confirme para gravar no banco de dados.</div>
-                    <div class="invalid-feedback">Selecione uma planilha válida (.xlsx, .xls ou .csv).</div>
-                </div>
-                <div class="col-12 col-lg-5 d-grid">
-                    <button type="button" class="btn btn-outline-dark js-uso-teste-parse">Ler planilha</button>
-                </div>
-            </div>
-
-            <div class="alert alert-dark border mt-3 mb-0 d-none js-uso-teste-preview" role="status">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-                    <strong>Pré-visualização da importação</strong>
-                    <span class="badge text-bg-dark js-uso-teste-preview-count">0 linha(s)</span>
-                </div>
-                <div class="small js-uso-teste-preview-columns mb-2"></div>
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped mb-2">
-                        <thead>
-                        <tr>
-                            <th>TecnicoID</th>
-                            <th>CodigoBarras</th>
-                            <th>Quantidade</th>
-                            <th>Local</th>
-                            <th>Observações</th>
-                        </tr>
-                        </thead>
-                        <tbody class="js-uso-teste-preview-body"></tbody>
-                    </table>
-                </div>
-                <button type="submit" class="btn btn-dark">Confirmar Importação</button>
-            </div>
-        </form>
-    </div>
-</div>
 
 <!-- Histórico de Movimentações -->
 <?php if (!empty($alertasUsoTeste)): ?>
@@ -480,7 +443,7 @@ foreach ($movimentacoes as $mov) {
         </div>
         <div class="card-body">
             <div class="alert alert-warning mb-3 small">
-                Esses recolhimentos foram aceitos no estoque geral sem saldo em campo suficiente no historico. Revise os registros para reconciliar legado ou ajustar movimentacoes anteriores.
+                Esses recolhimentos ficaram sem lastro suficiente no saldo em campo historico. Revise os registros para reconciliar o legado e evitar distorcao operacional.
             </div>
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
@@ -512,75 +475,6 @@ foreach ($movimentacoes as $mov) {
         </div>
     </div>
 <?php endif; ?>
-
-<?php
-$totalAparelhosDefeito = 0;
-foreach ($aparelhosComDefeito as $itemDefeitoTotal) {
-    $totalAparelhosDefeito += (int) ($itemDefeitoTotal['quantidade'] ?? 0);
-}
-?>
-<div class="card card-soft border-danger reveal mb-3" id="secao-com-defeito">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="mb-0 text-danger">COM DEFEITO</h6>
-        <span class="badge text-bg-danger"><?php echo count($aparelhosComDefeito); ?> registro(s) | Qtd total: <?php echo $totalAparelhosDefeito; ?></span>
-    </div>
-    <div class="card-body">
-        <div class="alert alert-danger small mb-3">
-            Itens recolhidos com defeito nao voltam para o estoque normal. Abaixo estao apenas os aparelhos recolhidos com defeito na data selecionada.
-        </div>
-
-        <div class="row g-2 mb-3">
-            <div class="col-12 col-lg-5">
-                <label class="form-label small text-muted mb-1">Data de exibicao</label>
-                <form method="get" class="d-flex gap-2">
-                    <input type="hidden" name="route" value="movimentacoes">
-                    <input type="hidden" name="date" value="<?php echo sanitize($selectedDate); ?>">
-                    <input type="date" name="defect_date" class="form-control" value="<?php echo sanitize((string) $defectFilterDate); ?>">
-                    <button type="submit" class="btn btn-outline-danger">Filtrar</button>
-                </form>
-            </div>
-            <div class="col-12 col-lg-5">
-                <label class="form-label small text-muted mb-1">Filtrar por serial</label>
-                <input type="text" class="form-control js-defect-serial-filter" placeholder="Digite o serial para buscar">
-            </div>
-        </div>
-
-        <?php if (empty($aparelhosComDefeito)): ?>
-            <div class="alert alert-dark border mb-0">Nenhum aparelho recolhido com defeito foi registrado em <?php echo date('d/m/Y', strtotime((string) $defectFilterDate)); ?>.</div>
-        <?php else: ?>
-            <div class="alert alert-dark border d-none js-defect-empty-filter mb-3">Nenhum registro com esse serial.</div>
-            <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
-                    <tr>
-                        <th>Tecnico</th>
-                        <th>Equipamento</th>
-                        <th>Serial</th>
-                        <th>Qtd</th>
-                        <th>Motivo/Defeito</th>
-                        <th>Data</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach ($aparelhosComDefeito as $itemDefeito): ?>
-                        <tr class="js-defect-row" data-defect-serial="<?php echo strtolower(sanitize((string) ($itemDefeito['serial_equipamento'] ?? ''))); ?>">
-                            <td><?php echo sanitize((string) ($itemDefeito['tecnico_nome'] ?? 'Sem tecnico')); ?></td>
-                            <td>
-                                <?php echo sanitize((string) ($itemDefeito['equipamento_nome'] ?? 'Equipamento')); ?>
-                                <small class="text-muted d-block"><?php echo sanitize((string) ($itemDefeito['equipamento_tipo'] ?? '')); ?></small>
-                            </td>
-                            <td><?php echo sanitize((string) ($itemDefeito['serial_equipamento'] ?? '-')); ?></td>
-                            <td><?php echo (int) ($itemDefeito['quantidade'] ?? 0); ?></td>
-                            <td><?php echo sanitize((string) ($itemDefeito['motivo_defeito'] ?? '-')); ?></td>
-                            <td><?php echo !empty($itemDefeito['data_movimentacao']) ? date('d/m/Y H:i', strtotime((string) $itemDefeito['data_movimentacao'])) : '-'; ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php endif; ?>
-    </div>
-</div>
 
 <div class="row g-3 mt-3 reveal">
     <div class="col-6 col-lg-3">
@@ -666,7 +560,7 @@ foreach ($aparelhosComDefeito as $itemDefeitoTotal) {
     </div>
 </div>
 
-<div class="row g-4 mt-1 reveal">
+<div class="row g-4 mt-1 reveal" id="historico-mov">
     <div class="col-12">
         <div class="card card-soft h-100">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -691,7 +585,7 @@ foreach ($aparelhosComDefeito as $itemDefeitoTotal) {
                                 <option value="uso_teste">Uso em teste</option>
                                 <option value="devolucao">Devolução</option>
                                 <option value="recolhimento">Recolhimento</option>
-                                <option value="recolhimento_defeito">Recolhimento com defeito</option>
+                                <option value="recolhimento_defeito">Devolucao com defeito</option>
                             </select>
                         </div>
                         <div class="col-12 col-lg-3 d-flex align-items-end gap-2 history-actions-wrap">
@@ -754,7 +648,7 @@ foreach ($aparelhosComDefeito as $itemDefeitoTotal) {
                                             'uso_teste' => 'USOS EM TESTE',
                                             'devolucao' => 'DEVOLUCOES',
                                             'recolhimento' => 'RECOLHIMENTOS',
-                                            'recolhimento_defeito' => 'RECOLHIMENTOS COM DEFEITO',
+                                            'recolhimento_defeito' => 'DEVOLUCOES COM DEFEITO',
                                         ];
                                         ?>
 
@@ -904,34 +798,6 @@ foreach ($aparelhosComDefeito as $itemDefeitoTotal) {
             });
         });
 
-        const defectSerialFilter = document.querySelector('.js-defect-serial-filter');
-        const defectRows = Array.from(document.querySelectorAll('.js-defect-row'));
-        const defectEmptyState = document.querySelector('.js-defect-empty-filter');
-
-        if (defectSerialFilter && defectRows.length) {
-            const applyDefectSerialFilter = function() {
-                const term = (defectSerialFilter.value || '').toLowerCase().trim();
-                let visibleCount = 0;
-
-                defectRows.forEach(row => {
-                    const serial = (row.getAttribute('data-defect-serial') || '').toLowerCase();
-                    const visible = term === '' || serial.includes(term);
-                    row.style.display = visible ? '' : 'none';
-
-                    if (visible) {
-                        visibleCount++;
-                    }
-                });
-
-                if (defectEmptyState) {
-                    defectEmptyState.classList.toggle('d-none', visibleCount > 0);
-                }
-            };
-
-            defectSerialFilter.addEventListener('input', applyDefectSerialFilter);
-            applyDefectSerialFilter();
-        }
-
         // Validação de Batch para Formulários de Uso
         const batchForms = document.querySelectorAll('.js-batch-form');
         batchForms.forEach(form => {
@@ -964,7 +830,7 @@ foreach ($aparelhosComDefeito as $itemDefeitoTotal) {
                             'uso': 'Uso',
                             'uso_teste': 'Uso em Teste',
                             'recolhimento': 'Recolhimento',
-                            'recolhimento_defeito': 'Recolhimento com Defeito'
+                            'recolhimento_defeito': 'Devolucao com Defeito'
                         }[tipoMovimento] || 'Movimento';
                         
                         alert('⚠️ Dados incompletos para envio!\n\n' +

@@ -17,11 +17,21 @@ $resumo = $data['resumo'] ?? [
     <p class="page-subtitle">Registre lembretes manuais para a operação. O alerta permanece ativo até marcar como resolvido.</p>
 </section>
 
-<div class="card card-soft reveal mb-4">
+<div class="card card-soft reveal mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-2 section-shortcuts">
+            <a class="btn btn-sm btn-outline-secondary" href="#novo-lembrete">Novo lembrete</a>
+            <a class="btn btn-sm btn-outline-secondary" href="#lista-lembretes">Lista de lembretes</a>
+        </div>
+    </div>
+</div>
+
+<div class="card card-soft reveal mb-4" id="novo-lembrete">
     <div class="card-header d-flex justify-content-between align-items-center gap-2">
         <h5 class="mb-0">Novo Lembrete</h5>
-        <span class="badge text-bg-info">Manual</span>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#novo-lembrete-body" aria-expanded="false" aria-controls="novo-lembrete-body" data-label-expand="Mostrar" data-label-collapse="Ocultar">Mostrar</button>
     </div>
+    <div id="novo-lembrete-body" class="collapse">
     <div class="card-body">
         <form method="post" class="row g-3">
             <input type="hidden" name="action" value="lembrete_store">
@@ -56,6 +66,7 @@ $resumo = $data['resumo'] ?? [
             </div>
         </form>
     </div>
+    </div>
 </div>
 
 <div class="card card-soft reveal mb-4 sticky-date-filter">
@@ -74,6 +85,10 @@ $resumo = $data['resumo'] ?? [
                     <option value="lido"<?php echo $selectedStatus === 'lido' ? ' selected' : ''; ?>>Lidos</option>
                     <option value="resolvido"<?php echo $selectedStatus === 'resolvido' ? ' selected' : ''; ?>>Resolvidos</option>
                 </select>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label mb-1">Busca rapida</label>
+                <input type="text" class="form-control js-lembrete-search" placeholder="Buscar por titulo ou mensagem">
             </div>
             <div class="col-12 col-md-4 col-lg-3 d-flex gap-2">
                 <button type="submit" class="btn btn-primary">Aplicar Filtros</button>
@@ -121,7 +136,7 @@ $resumo = $data['resumo'] ?? [
     </div>
 </div>
 
-<div class="card card-soft reveal">
+<div class="card card-soft reveal" id="lista-lembretes">
     <div class="card-header d-flex justify-content-between align-items-center gap-2">
         <h5 class="mb-0">Mensagens e Lembretes</h5>
         <span class="badge text-bg-info"><?php echo count($lembretes); ?> registro(s)</span>
@@ -130,6 +145,7 @@ $resumo = $data['resumo'] ?? [
         <?php if (empty($lembretes)): ?>
             <div class="alert alert-secondary mb-0">Nenhum lembrete encontrado para os filtros atuais.</div>
         <?php else: ?>
+            <div class="alert alert-dark border d-none js-lembrete-empty-filter mb-3">Nenhum lembrete encontrado para a busca informada.</div>
             <div class="row g-3">
                 <?php foreach ($lembretes as $lembrete): ?>
                     <?php
@@ -148,7 +164,7 @@ $resumo = $data['resumo'] ?? [
                         default => 'text-bg-warning',
                     };
                     ?>
-                    <div class="col-12 col-xl-6">
+                    <div class="col-12 col-xl-6 js-lembrete-card" data-lembrete-title="<?php echo strtolower(sanitize((string) ($lembrete['titulo'] ?? ''))); ?>" data-lembrete-message="<?php echo strtolower(sanitize((string) ($lembrete['mensagem'] ?? ''))); ?>">
                         <div class="card card-soft h-100 border <?php echo $nivel === 'danger' ? 'border-danger' : 'border-secondary'; ?>">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start gap-2 mb-2">

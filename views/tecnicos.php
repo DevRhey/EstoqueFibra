@@ -145,6 +145,13 @@ $estoqueSeguroLabels = [
     <div class="col-12">
         <div class="mb-3"><?php require __DIR__ . '/partials/tech-risk-legend.php'; ?></div>
     </div>
+    <div class="col-12 col-lg-6">
+        <label class="form-label small text-muted mb-1">Filtrar tecnico</label>
+        <input type="text" class="form-control js-tech-card-filter" placeholder="Digite o nome do tecnico para localizar rapido">
+    </div>
+    <div class="col-12">
+        <div class="alert alert-dark border d-none js-tech-card-empty mb-0">Nenhum tecnico encontrado para o filtro informado.</div>
+    </div>
 
     <?php if (empty($cardsTecnicos)): ?>
         <div class="col-12 reveal">
@@ -161,7 +168,7 @@ $estoqueSeguroLabels = [
             $saldoEfetivo = $card['saldo_por_categoria_efetivo'] ?? [];
             $ontEmMao = (int) ($saldoCategoria['ont'] ?? 0);
             ?>
-            <div class="col-12 col-lg-6 col-xl-4 reveal">
+            <div class="col-12 col-lg-6 col-xl-4 reveal js-tech-card" data-tech-card-name="<?php echo strtolower(sanitize((string) ($card['tecnico_nome'] ?? ''))); ?>">
                 <div class="card card-soft h-100">
                     <div class="card-header d-flex justify-content-between align-items-center gap-2">
                         <h5 class="mb-0"><span class="tech-name-emphasis <?php echo $techRiskClass; ?>"><?php echo sanitize($card['tecnico_nome']); ?></span></h5>
@@ -195,7 +202,7 @@ $estoqueSeguroLabels = [
                                 <a href="index.php?route=movimentacoes&tipo=uso_teste&tecnico_id=<?php echo (int) ($card['tecnico_id'] ?? 0); ?>" class="btn btn-sm btn-action-filled btn-action-teste">Uso Teste</a>
                                 <a href="index.php?route=movimentacoes&tipo=devolucao&tecnico_id=<?php echo (int) ($card['tecnico_id'] ?? 0); ?>" class="btn btn-sm btn-action-filled btn-action-devolucao">Devolucao</a>
                                 <a href="index.php?route=movimentacoes&tipo=recolhimento&tecnico_id=<?php echo (int) ($card['tecnico_id'] ?? 0); ?>" class="btn btn-sm btn-action-filled btn-action-recolhimento">Recolhimento</a>
-                                <a href="index.php?route=movimentacoes&tipo=recolhimento_defeito&tecnico_id=<?php echo (int) ($card['tecnico_id'] ?? 0); ?>" class="btn btn-sm btn-outline-danger">Com defeito</a>
+                                <a href="index.php?route=movimentacoes&tipo=recolhimento_defeito&tecnico_id=<?php echo (int) ($card['tecnico_id'] ?? 0); ?>" class="btn btn-sm btn-outline-danger">Devolver c/ defeito</a>
                             </div>
                         </div>
 
@@ -309,11 +316,11 @@ $estoqueSeguroLabels = [
 
             <div class="accordion-item bg-transparent border-0 mt-2">
                 <h2 class="accordion-header" id="headingListaTecnicos">
-                    <button class="accordion-button collapsed bg-transparent text-light shadow-none px-0" type="button" data-bs-toggle="collapse" data-bs-target="#collapseListaTecnicos" aria-expanded="false" aria-controls="collapseListaTecnicos">
+                    <button class="accordion-button bg-transparent text-light shadow-none px-0" type="button" data-bs-toggle="collapse" data-bs-target="#collapseListaTecnicos" aria-expanded="true" aria-controls="collapseListaTecnicos">
                         Lista de Tecnicos
                     </button>
                 </h2>
-                <div id="collapseListaTecnicos" class="accordion-collapse collapse" aria-labelledby="headingListaTecnicos" data-bs-parent="#tecnicosAccordion">
+                <div id="collapseListaTecnicos" class="accordion-collapse collapse show" aria-labelledby="headingListaTecnicos" data-bs-parent="#tecnicosAccordion">
                     <div class="accordion-body px-0 pt-3">
                         <div class="table-responsive">
                             <table class="table table-hover align-middle mb-0">

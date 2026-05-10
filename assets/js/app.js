@@ -13,6 +13,10 @@ document.addEventListener('DOMContentLoaded', function () {
     wireBatchForms();
     wireDashboardMovementQuickActions();
     wireDashboardMovementModalPrefill();
+    wireCollapseToggleLabels();
+    wireDashboardTechCardsFilters();
+    wireTecnicosCardsFilters();
+    wireLembretesCardsFilters();
     wireMovementHistoryFilters();
     wireMovementPrefillFromQuery();
     wireBarcodeScannerInMovementModals();
@@ -22,6 +26,7 @@ document.addEventListener('DOMContentLoaded', function () {
     wirePurchaseWhatsAppMessage();
     wireInadimplenciaImport();
     wireInadimplenciaEditModal();
+    wireInadimplenciaQuickFilters();
     wireUsoTesteImport();
     staggerRevealAnimation();
 });
@@ -803,7 +808,7 @@ function wireRecolhimentoModal() {
 }
 
 function wireRecolhimentoDefeitoModal() {
-    wireSystemEquipmentModal('#modal-recolhimento-defeito', '.js-recolhimento-defeito-equipamento');
+    wireHandEquipmentModal('#modal-recolhimento-defeito', '.js-recolhimento-defeito-tecnico', '.js-recolhimento-defeito-equipamento');
 }
 
 function readMovementMap() {
@@ -1515,6 +1520,178 @@ function wireMovementHistoryFilters() {
     }
 
     applyFilters();
+}
+
+function wireCollapseToggleLabels() {
+    const buttons = document.querySelectorAll('[data-bs-toggle="collapse"][data-label-expand][data-label-collapse]');
+
+    if (!buttons.length) {
+        return;
+    }
+
+    buttons.forEach(function (button) {
+        const targetSelector = button.getAttribute('data-bs-target') || '';
+        if (!targetSelector || targetSelector.charAt(0) !== '#') {
+            return;
+        }
+
+        const collapseElement = document.querySelector(targetSelector);
+        if (!collapseElement) {
+            return;
+        }
+
+        const labelExpand = button.getAttribute('data-label-expand') || 'Expandir';
+        const labelCollapse = button.getAttribute('data-label-collapse') || 'Ocultar';
+
+        const syncLabel = function () {
+            const isShown = collapseElement.classList.contains('show');
+            button.textContent = isShown ? labelCollapse : labelExpand;
+            button.setAttribute('aria-expanded', isShown ? 'true' : 'false');
+        };
+
+        collapseElement.addEventListener('shown.bs.collapse', syncLabel);
+        collapseElement.addEventListener('hidden.bs.collapse', syncLabel);
+        syncLabel();
+    });
+}
+
+function wireDashboardTechCardsFilters() {
+    const input = document.querySelector('.js-dashboard-tech-filter');
+    const cards = Array.from(document.querySelectorAll('.js-dashboard-tech-card'));
+    const emptyState = document.querySelector('.js-dashboard-tech-empty');
+    const visibleCount = document.querySelector('.js-dashboard-tech-count');
+
+    if (!input || !cards.length) {
+        return;
+    }
+
+    const applyFilter = function () {
+        const term = (input.value || '').toLowerCase().trim();
+        let visible = 0;
+
+        cards.forEach(function (card) {
+            const name = (card.getAttribute('data-tech-card-name') || '').toLowerCase();
+            const match = term === '' || name.indexOf(term) !== -1;
+            card.style.display = match ? '' : 'none';
+
+            if (match) {
+                visible++;
+            }
+        });
+
+        if (visibleCount) {
+            visibleCount.textContent = String(visible);
+        }
+
+        if (emptyState) {
+            emptyState.classList.toggle('d-none', visible > 0);
+        }
+    };
+
+    input.addEventListener('input', applyFilter);
+    applyFilter();
+}
+
+function wireTecnicosCardsFilters() {
+    const input = document.querySelector('.js-tech-card-filter');
+    const cards = Array.from(document.querySelectorAll('.js-tech-card'));
+    const empty = document.querySelector('.js-tech-card-empty');
+
+    if (!input || !cards.length) {
+        return;
+    }
+
+    const applyFilter = function () {
+        const term = (input.value || '').toLowerCase().trim();
+        let visible = 0;
+
+        cards.forEach(function (card) {
+            const name = (card.getAttribute('data-tech-card-name') || '').toLowerCase();
+            const match = term === '' || name.indexOf(term) !== -1;
+            card.style.display = match ? '' : 'none';
+
+            if (match) {
+                visible += 1;
+            }
+        });
+
+        if (empty) {
+            empty.classList.toggle('d-none', visible > 0);
+        }
+    };
+
+    input.addEventListener('input', applyFilter);
+    applyFilter();
+}
+
+function wireLembretesCardsFilters() {
+    const input = document.querySelector('.js-lembrete-search');
+    const cards = Array.from(document.querySelectorAll('.js-lembrete-card'));
+    const empty = document.querySelector('.js-lembrete-empty-filter');
+
+    if (!input || !cards.length) {
+        return;
+    }
+
+    const applyFilter = function () {
+        const term = (input.value || '').toLowerCase().trim();
+        let visible = 0;
+
+        cards.forEach(function (card) {
+            const title = (card.getAttribute('data-lembrete-title') || '').toLowerCase();
+            const message = (card.getAttribute('data-lembrete-message') || '').toLowerCase();
+            const match = term === '' || title.indexOf(term) !== -1 || message.indexOf(term) !== -1;
+            card.style.display = match ? '' : 'none';
+
+            if (match) {
+                visible += 1;
+            }
+        });
+
+        if (empty) {
+            empty.classList.toggle('d-none', visible > 0);
+        }
+    };
+
+    input.addEventListener('input', applyFilter);
+    applyFilter();
+}
+
+function wireInadimplenciaQuickFilters() {
+    const input = document.querySelector('.js-inad-table-search');
+    const rows = Array.from(document.querySelectorAll('.js-inad-row'));
+    const empty = document.querySelector('.js-inad-empty');
+    const count = document.querySelector('.js-inad-visible-count');
+
+    if (!input || !rows.length) {
+        return;
+    }
+
+    const applyFilter = function () {
+        const term = (input.value || '').toLowerCase().trim();
+        let visible = 0;
+
+        rows.forEach(function (row) {
+            const text = (row.getAttribute('data-inad-text') || '').toLowerCase();
+            const match = term === '' || text.indexOf(term) !== -1;
+            row.style.display = match ? '' : 'none';
+
+            if (match) {
+                visible += 1;
+            }
+        });
+
+        if (count) {
+            count.textContent = String(visible);
+        }
+
+        if (empty) {
+            empty.classList.toggle('d-none', visible > 0);
+        }
+    };
+
+    input.addEventListener('input', applyFilter);
+    applyFilter();
 }
 
 function wirePurchasePersonalList() {

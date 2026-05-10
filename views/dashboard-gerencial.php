@@ -31,6 +31,16 @@ $estoqueSeguroLabels = [
     <p class="page-subtitle">Administre equipamentos e tecnicos e acompanhe os dados por data de referencia.</p>
 </section>
 
+<div class="card card-soft reveal mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-2 section-shortcuts">
+            <a class="btn btn-sm btn-outline-secondary" href="#dashboard-kpis">Resumo do dia</a>
+            <a class="btn btn-sm btn-outline-secondary" href="#dashboard-operacoes">Operacoes</a>
+            <a class="btn btn-sm btn-outline-secondary" href="#dashboard-tecnicos">Tecnicos</a>
+        </div>
+    </div>
+</div>
+
 <div class="card card-soft reveal mb-4 dashboard-quick-actions-card">
     <div class="card-body">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
@@ -82,13 +92,14 @@ $estoqueSeguroLabels = [
     </div>
 </div>
 
-<div class="card card-soft reveal mb-4">
+<div class="card card-soft reveal mb-4" id="dashboard-operacoes">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Operacoes de Movimentacao</h5>
-        <span class="badge text-bg-primary">Operar sem sair do dashboard</span>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#dashboard-operacoes-body" aria-expanded="false" aria-controls="dashboard-operacoes-body" data-label-expand="Expandir" data-label-collapse="Ocultar">Expandir</button>
     </div>
-    <div class="card-body">
-        <div class="row g-3">
+    <div id="dashboard-operacoes-body" class="collapse">
+        <div class="card-body pt-2">
+            <div class="row g-3">
             <div class="col-12 col-sm-6 col-lg-4 col-xl">
                 <button class="btn btn-success w-100 h-100 p-3" data-bs-toggle="modal" data-bs-target="#modal-entrega">
                     <strong>Entregar</strong>
@@ -110,13 +121,13 @@ $estoqueSeguroLabels = [
             <div class="col-12 col-sm-6 col-lg-6 col-xl">
                 <button class="btn btn-info w-100 h-100 p-3" data-bs-toggle="modal" data-bs-target="#modal-recolhimento">
                     <strong>Recolher</strong>
-                    <small class="d-block mt-1">Coleta de cliente</small>
+                    <small class="d-block mt-1">Cliente para mao do tecnico</small>
                 </button>
             </div>
             <div class="col-12 col-sm-6 col-lg-6 col-xl">
                 <button class="btn btn-danger w-100 h-100 p-3" data-bs-toggle="modal" data-bs-target="#modal-recolhimento-defeito">
-                    <strong>Recolher c/ defeito</strong>
-                    <small class="d-block mt-1">Lista especial de defeitos</small>
+                    <strong>Devolver c/ defeito</strong>
+                    <small class="d-block mt-1">Sai da mao e vai para lista</small>
                 </button>
             </div>
             <div class="col-12 col-sm-6 col-lg-6 col-xl">
@@ -125,11 +136,12 @@ $estoqueSeguroLabels = [
                     <small class="d-block mt-1">Retorno ao estoque</small>
                 </button>
             </div>
+            </div>
         </div>
     </div>
 </div>
 
-<div class="row g-3 mb-4 reveal">
+<div class="row g-3 mb-4 reveal" id="dashboard-kpis">
     <div class="col-6 col-md-4 col-xl-2">
         <div class="card card-soft history-stat-card history-stat-card-total h-100">
             <div class="card-body">
@@ -342,10 +354,20 @@ $estoqueSeguroLabels = [
 </div>
 
 <!-- CARDS DOS TECNICOS -->
-<div class="row g-4 mt-4 mb-4">
+<div class="row g-4 mt-4 mb-4" id="dashboard-tecnicos">
     <div class="col-12">
         <h4 class="mb-3 reveal">Informacoes por Tecnico (<?php echo date('d/m/Y', strtotime($selectedDate)); ?>)</h4>
         <div class="mb-3"><?php require __DIR__ . '/partials/tech-risk-legend.php'; ?></div>
+    </div>
+    <div class="col-12 col-lg-7">
+        <label class="form-label small text-muted mb-1">Localizar tecnico</label>
+        <input type="text" class="form-control js-dashboard-tech-filter" placeholder="Digite o nome do tecnico">
+    </div>
+    <div class="col-12 col-lg-5 d-flex align-items-end">
+        <div class="small text-muted">Tecnicos visiveis: <strong class="js-dashboard-tech-count"><?php echo count($cardsTecnicos); ?></strong></div>
+    </div>
+    <div class="col-12">
+        <div class="alert alert-dark border d-none js-dashboard-tech-empty mb-0">Nenhum tecnico encontrado para o filtro informado.</div>
     </div>
 
     <?php if (empty($cardsTecnicos)): ?>
@@ -360,7 +382,7 @@ $estoqueSeguroLabels = [
             $reporTotal = (int) ($card['repor_total'] ?? 0);
             $techRiskClass = $reporTotal === 0 ? 'tech-name-emphasis-ok' : ($reporTotal <= 3 ? 'tech-name-emphasis-warning' : 'tech-name-emphasis-critical');
             ?>
-            <div class="col-12 col-lg-6 col-xl-4 reveal">
+            <div class="col-12 col-lg-6 col-xl-4 reveal js-dashboard-tech-card" data-tech-card-name="<?php echo strtolower(sanitize((string) ($card['tecnico_nome'] ?? ''))); ?>">
                 <div class="card card-soft h-100">
                     <div class="card-header d-flex justify-content-between align-items-center gap-2">
                         <h5 class="mb-0"><span class="tech-name-emphasis <?php echo $techRiskClass; ?>"><?php echo sanitize($card['tecnico_nome']); ?></span></h5>
@@ -395,7 +417,7 @@ $estoqueSeguroLabels = [
                                 <button type="button" class="btn btn-sm btn-action-filled btn-action-teste" data-bs-toggle="modal" data-bs-target="#modal-uso-teste" data-tecnico-id="<?php echo (int) ($card['tecnico_id'] ?? 0); ?>">Uso Teste</button>
                                 <button type="button" class="btn btn-sm btn-action-filled btn-action-devolucao" data-bs-toggle="modal" data-bs-target="#modal-devolucao" data-tecnico-id="<?php echo (int) ($card['tecnico_id'] ?? 0); ?>">Devolucao</button>
                                 <button type="button" class="btn btn-sm btn-action-filled btn-action-recolhimento" data-bs-toggle="modal" data-bs-target="#modal-recolhimento" data-tecnico-id="<?php echo (int) ($card['tecnico_id'] ?? 0); ?>">Recolhimento</button>
-                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modal-recolhimento-defeito" data-tecnico-id="<?php echo (int) ($card['tecnico_id'] ?? 0); ?>">Com defeito</button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modal-recolhimento-defeito" data-tecnico-id="<?php echo (int) ($card['tecnico_id'] ?? 0); ?>">Devolver c/ defeito</button>
                             </div>
                         </div>
 

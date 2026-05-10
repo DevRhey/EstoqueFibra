@@ -22,8 +22,6 @@ class MovimentacaoController
         $selectedDate = $this->normalizeDate($selectedDate) ?? date('Y-m-d');
         $cardsTecnicos = $this->movimentacaoModel->reportCardsTecnicos($selectedDate);
         $alertasUsoTeste = $this->movimentacaoModel->reportAlertasUsoTeste($selectedDate);
-        $defectFilterDate = $this->normalizeDate((string) ($_GET['defect_date'] ?? '')) ?? $selectedDate;
-        $aparelhosComDefeito = $this->movimentacaoModel->reportAparelhosComDefeito($defectFilterDate);
         $recolhimentosSemLastro = $this->movimentacaoModel->reportRecolhimentosSemLastro($selectedDate);
         $integrityIssues = $this->movimentacaoModel->reportMovementIntegrityIssues($selectedDate);
 
@@ -70,8 +68,6 @@ class MovimentacaoController
             'tecnicos' => $this->tecnicoModel->all(),
             'cardsTecnicos' => $cardsTecnicos,
             'alertasUsoTeste' => $alertasUsoTeste,
-            'aparelhosComDefeito' => $aparelhosComDefeito,
-            'defectFilterDate' => $defectFilterDate,
             'recolhimentosSemLastro' => $recolhimentosSemLastro,
             'integrityIssues' => $integrityIssues,
             'selectedDate' => $selectedDate,
@@ -594,6 +590,49 @@ class MovimentacaoController
         ];
     }
 
+    public function defectiveEquipments(): array
+    {
+        $selectedDate = $this->normalizeDate((string) ($_GET['date'] ?? ''));
+        $tecnicoId = (int) ($_GET['tecnico_id'] ?? 0);
+        $query = sanitizeInput((string) ($_GET['q'] ?? ''));
+
+        $registros = $this->movimentacaoModel->reportEquipamentosComDefeito(
+            $selectedDate,
+            $tecnicoId > 0 ? $tecnicoId : null,
+            $query !== '' ? $query : null
+        );
+
+        $equipamentosUnicos = [];
+        $tecnicosUnicos = [];
+        $quantidadeTotal = 0;
+
+        foreach ($registros as $row) {
+            $quantidadeTotal += (int) ($row['quantidade'] ?? 0);
+
+            $equipKey = (string) (($row['equipamento_nome'] ?? 'Equipamento') . '|' . ($row['equipamento_tipo'] ?? 'indefinido'));
+            $equipamentosUnicos[$equipKey] = true;
+
+            $tecKey = (string) ($row['tecnico_nome'] ?? 'Sem tecnico');
+            $tecnicosUnicos[$tecKey] = true;
+        }
+
+        return [
+            'registros' => $registros,
+            'tecnicos' => $this->tecnicoModel->all(),
+            'filters' => [
+                'date' => $selectedDate,
+                'tecnico_id' => $tecnicoId,
+                'q' => $query,
+            ],
+            'resumo' => [
+                'registros' => count($registros),
+                'quantidade_total' => $quantidadeTotal,
+                'tecnicos' => count($tecnicosUnicos),
+                'equipamentos' => count($equipamentosUnicos),
+            ],
+        ];
+    }
+
     public function purchaseSupport(): array
     {
         return $this->movimentacaoModel->getPurchaseSupportData();
@@ -900,118 +939,6 @@ class MovimentacaoController
         }
 
         return sprintf('%s %02d:%02d:%02d', $normalizedDate, $hour, $minute, $second);
-    }
-
-    public function importUsoTesteSpreadsheet(array $data): void
-    {
-        $rowsJson = (string) ($data['linhas_importacao_json'] ?? '');
-        $selectedDate = $this->normalizeDate((string) ($data['selected_date'] ?? '')) ?? date('Y-m-d');
-
-        if (trim($rowsJson) === '') {
-            setFlash('danger', 'Nenhuma linha encontrada para importar. Confira a planilha e tente novamente.');
-            $this->redirectMovimentacoes($selectedDate);
-        }
-
-        $rows = json_decode($rowsJson, true);
-        if (!is_array($rows) || empty($rows)) {
-            setFlash('danger', 'Falha ao ler os dados da planilha.');
-            $this->redirectMovimentacoes($selectedDate);
-        }
-
-        if (count($rows) > 5000) {
-            setFlash('danger', 'A planilha excede 5.000 linhas. Divida o arquivo e tente novamente.');
-            $this->redirectMovimentacoes($selectedDate);
-        }
-
-        $tecnicos = $this->tecnicoModel->all();
-        $equipamentos = $this->equipamentoModel->all();
-
-        $tecnicoMap = [];
-        $equipamentoMapById = [];
-        $equipamentoMapByBarcode = [];
-
-        foreach ($tecnicos as $tec) {
-            $tecnicoMap[(int) $tec['id']] = true;
-        }
-
-        foreach ($equipamentos as $eq) {
-            $equipamentoMapById[(int) $eq['id']] = true;
-            if (!empty($eq['codigo_barras'])) {
-                $equipamentoMapByBarcode[trim((string) $eq['codigo_barras'])] = (int) $eq['id'];
-            }
-        }
-
-        $importados = 0;
-        $erros = [];
-
-        try {
-            foreach ($rows as $index => $row) {
-                $tecnicoId = (int) ($row['tecnico_id'] ?? 0);
-                $codigoBarras = trim((string) ($row['codigo_barras'] ?? ''));
-                $quantidade = max(1, (int) ($row['quantidade'] ?? 1));
-                $local = trim((string) ($row['local'] ?? 'Importado'));
-                $observacoes = trim((string) ($row['observacoes'] ?? ''));
-
-                if ($tecnicoId <= 0) {
-                    $erros[] = 'Linha ' . ($index + 1) . ': tecnico_id deve ser um número válido.';
-                    continue;
-                }
-
-                if (!isset($tecnicoMap[$tecnicoId])) {
-                    $erros[] = 'Linha ' . ($index + 1) . ': técnico com ID ' . $tecnicoId . ' não encontrado.';
-                    continue;
-                }
-
-                if (empty($codigoBarras)) {
-                    $erros[] = 'Linha ' . ($index + 1) . ': código de barras não pode estar vazio.';
-                    continue;
-                }
-
-                if (!isset($equipamentoMapByBarcode[$codigoBarras])) {
-                    $erros[] = 'Linha ' . ($index + 1) . ': equipamento com código de barras "' . $codigoBarras . '" não encontrado.';
-                    continue;
-                }
-
-                $equipamentoId = $equipamentoMapByBarcode[$codigoBarras];
-
-                if ($local === '') {
-                    $local = 'Importado';
-                }
-
-                try {
-                    $this->movimentacaoModel->create(
-                        $tecnicoId,
-                        $equipamentoId,
-                        $quantidade,
-                        'uso_teste',
-                        $local,
-                        $observacoes !== '' ? $observacoes : null,
-                        null
-                    );
-                    $importados++;
-                } catch (Throwable $e) {
-                    $erros[] = 'Linha ' . ($index + 1) . ': ' . $e->getMessage();
-                }
-            }
-
-            if ($importados > 0) {
-                $msg = 'Importação concluída com sucesso. ' . $importados . ' equipamento(s) em teste registrado(s).';
-                if (!empty($erros)) {
-                    $msg .= ' (' . count($erros) . ' linha(s) com erro)';
-                }
-                setFlash('success', $msg);
-            } else {
-                setFlash('danger', 'Nenhum equipamento foi importado. Confira os dados e tente novamente.');
-            }
-
-            if (!empty($erros)) {
-                setFlash('warning', 'Erros encontrados: ' . implode(' | ', array_slice($erros, 0, 5)) . (count($erros) > 5 ? ' (... e mais ' . (count($erros) - 5) . ')' : ''));
-            }
-        } catch (Throwable $e) {
-            setFlash('danger', 'Falha ao importar planilha: ' . $e->getMessage());
-        }
-
-        $this->redirectMovimentacoes($selectedDate);
     }
 
     private function redirectDashboard(?string $selectedDate): void

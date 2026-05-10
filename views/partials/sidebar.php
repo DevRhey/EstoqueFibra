@@ -17,6 +17,7 @@
                 <?php endif; ?>
             </a>
             <a class="nav-link sidebar-link <?php echo $currentRoute === 'testes' ? 'active' : ''; ?>" href="index.php?route=testes">Equipamentos em Teste</a>
+            <a class="nav-link sidebar-link <?php echo $currentRoute === 'equipamentos_defeito' ? 'active' : ''; ?>" href="index.php?route=equipamentos_defeito">Equipamentos com Defeito</a>
             <a class="nav-link sidebar-link <?php echo $currentRoute === 'relatorios' ? 'active' : ''; ?>" href="index.php?route=relatorios">Relatorios + Cards</a>
             <a class="nav-link sidebar-link <?php echo $currentRoute === 'apoio_compra' ? 'active' : ''; ?>" href="index.php?route=apoio_compra">Apoio Compra</a>
             <a class="nav-link sidebar-link <?php echo $currentRoute === 'inadimplencia' ? 'active' : ''; ?>" href="index.php?route=inadimplencia">Inadimplencia</a>

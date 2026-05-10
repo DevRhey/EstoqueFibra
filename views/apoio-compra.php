@@ -19,10 +19,20 @@ $whatsappNumber = '5571999429671';
     <p class="page-subtitle">Cada equipamento e tratado de forma independente para calcular estoque minimo, momento de compra e quantidade sugerida.</p>
 </section>
 
+<div class="card card-soft reveal mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-2 section-shortcuts">
+            <a class="btn btn-sm btn-outline-secondary" href="#apoio-resumo">Resumo e configuracao</a>
+            <a class="btn btn-sm btn-outline-secondary" href="#apoio-lista-personalizada">Lista personalizada</a>
+            <a class="btn btn-sm btn-outline-secondary" href="#apoio-planejamento">Planejamento por equipamento</a>
+        </div>
+    </div>
+</div>
+
 <form method="post" class="needs-validation" novalidate>
     <input type="hidden" name="action" value="apoio_compra_save">
 
-    <div class="row g-4 mb-4">
+    <div class="row g-4 mb-4" id="apoio-resumo">
         <div class="col-12 col-xl-5 reveal">
             <div class="card card-soft h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -109,11 +119,12 @@ $whatsappNumber = '5571999429671';
     </div>
 
     <!-- Lista de Compras Personalizada -->
-    <div class="card card-soft reveal">
+    <div class="card card-soft reveal" id="apoio-lista-personalizada">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Lista de Compras Personalizada</h5>
-            <span class="badge text-bg-info">Itens: <span class="js-purchase-list-count">0</span></span>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#purchase-personal-list-body" aria-expanded="false" aria-controls="purchase-personal-list-body" data-label-expand="Mostrar" data-label-collapse="Ocultar">Mostrar</button>
         </div>
+        <div id="purchase-personal-list-body" class="collapse">
         <div class="card-body border-bottom">
             <div class="row g-3 align-items-end">
                 <div class="col-12 col-lg-5">
@@ -165,9 +176,10 @@ $whatsappNumber = '5571999429671';
                 </div>
             </div>
         </div>
+        </div>
     </div>
 
-    <div class="card card-soft reveal">
+    <div class="card card-soft reveal" id="apoio-planejamento">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Planejamento por Equipamento</h5>
             <button type="submit" class="btn btn-sm btn-primary">Salvar consumos por item</button>

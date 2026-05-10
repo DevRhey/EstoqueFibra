@@ -6,7 +6,7 @@ $include_batch = !empty($include_batch);
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">Recolhimento por Defeito</h5>
+                <h5 class="modal-title">Devolucao com Defeito</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="post" class="needs-validation js-movement-form js-batch-form" novalidate>
@@ -77,7 +77,7 @@ $include_batch = !empty($include_batch);
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-danger text-white">Confirmar Recolhimento (Defeito)</button>
+                    <button type="submit" class="btn btn-danger text-white">Enviar para Lista de Defeitos</button>
                 </div>
             </form>
         </div>
